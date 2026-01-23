@@ -1,5 +1,6 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
+import { randomInt as cryptoRandomInt } from 'node:crypto'
 import { quote } from 'shell-quote'
 import zeroFill from 'zero-fill'
 import { createRequire } from 'module'
@@ -721,13 +722,36 @@ function chunk (str, n) {
 }
 
 /**
+ * Default cryptographically secure random function.
+ * @param  {number} min
+ * @param  {number} max
+ * @return {number}
+ */
+function defaultRandom (min, max) {
+  return cryptoRandomInt(min, max + 1) // cryptoRandomInt max is exclusive
+}
+
+// Current random function (can be swapped for testing)
+let randomFn = defaultRandom
+
+/**
  * Return a random integer between min and max (inclusive).
+ * Uses crypto.randomInt by default for cryptographically secure randomness.
  * @param  {number} min
  * @param  {number} max
  * @return {number}
  */
 function random (min, max) {
-  return min + Math.floor(Math.random() * (max - min + 1))
+  return randomFn(min, max)
+}
+
+/**
+ * Set a custom random function for testing purposes.
+ * Pass null to restore the default cryptographically secure random function.
+ * @param {((min: number, max: number) => number)|null} fn - Custom random function or null to reset
+ */
+function setRandomFunction (fn) {
+  randomFn = fn === null ? defaultRandom : fn
 }
 
 export {
@@ -737,5 +761,6 @@ export {
   parseCSVLine,
   randomize,
   setInterfaceMAC,
-  setPreferIfconfig
+  setPreferIfconfig,
+  setRandomFunction
 }
