@@ -52,7 +52,7 @@ test('findInterfacesDarwin - parses networksetup output correctly', async t => {
 
   try {
     // Mock the module with our custom execSync
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -107,7 +107,7 @@ test('findInterfacesDarwin - filters by target', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -158,7 +158,7 @@ test('findInterfacesLinuxIp - parses ip link show output correctly', async t => 
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -219,7 +219,7 @@ test('findInterfacesLinuxIp - filters by target', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -272,7 +272,7 @@ test('findInterfacesLinuxIfconfig - parses legacy ifconfig output', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -317,7 +317,7 @@ test('findInterfacesWin32 - parses ipconfig /all output', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -359,7 +359,7 @@ test('findInterfacesWin32 - filters by target', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -395,7 +395,7 @@ test('findInterface - returns first matching interface', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -425,7 +425,7 @@ test('findInterface - returns undefined for non-existent device', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -485,7 +485,7 @@ test('getLinuxPortType - correctly identifies device types', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }

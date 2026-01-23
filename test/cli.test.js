@@ -11,7 +11,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const cliPath = path.join(__dirname, '..', 'bin', 'cmd.js')
+const cliPath = path.join(__dirname, '..', 'dist', 'cli.js')
 
 /**
  * Helper to run the CLI and capture output

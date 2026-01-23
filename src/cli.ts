@@ -2,13 +2,42 @@
 
 import chalk from 'chalk'
 import minimist from 'minimist'
-import * as spoof from '../index.js'
+import * as spoof from './index.js'
 import { stripIndent } from 'common-tags'
 import { createRequire } from 'module'
+import type { NetworkInterface } from './types.js'
 
 const require = createRequire(import.meta.url)
 
-const argv = minimist(process.argv.slice(2), {
+interface ParsedArgs {
+  _: string[]
+  verbose?: boolean
+  v?: boolean
+  quiet?: boolean
+  q?: boolean
+  'dry-run'?: boolean
+  n?: boolean
+  version?: boolean
+  'prefer-ifconfig'?: boolean
+  format?: string
+  wifi?: boolean
+  local?: boolean
+}
+
+interface OperationResult {
+  device: string
+  port?: string
+  currentAddress?: string | null
+  newAddress?: string
+  success: boolean
+  error?: string
+}
+
+interface ErrorWithCode extends Error {
+  code?: string
+}
+
+const argv = minimist<ParsedArgs>(process.argv.slice(2), {
   alias: {
     v: 'verbose',
     q: 'quiet',
@@ -51,15 +80,14 @@ if (argv['prefer-ifconfig']) {
 try {
   init()
 } catch (err) {
-  outputError(err)
+  outputError(err as ErrorWithCode)
   process.exitCode = 1
 }
 
 /**
  * Output a message respecting --quiet and --format flags
- * @param {string} message
  */
-function output (message) {
+function output(message: string): void {
   if (isQuiet) return
   if (isJson) return // JSON mode uses structured output only
   console.log(message)
@@ -67,21 +95,18 @@ function output (message) {
 
 /**
  * Output verbose/debug information
- * @param {string} message
  */
-function verbose (message) {
+function verbose(message: string): void {
   if (!isVerbose) return
   console.error(chalk.dim(`[VERBOSE] ${message}`))
 }
 
 /**
  * Output an error respecting --format flag
- * @param {Error & { code?: string }} err
  */
-function outputError (err) {
+function outputError(err: ErrorWithCode): void {
   if (isJson) {
-    /** @type {{ message: string, code?: string }} */
-    const errorObj = { message: err.message }
+    const errorObj: { message: string; code?: string } = { message: err.message }
     if ('code' in err && err.code) {
       errorObj.code = err.code
     }
@@ -96,19 +121,18 @@ function outputError (err) {
 
 /**
  * Output JSON response for commands
- * @param {object} data
  */
-function outputJson (data) {
+function outputJson(data: Record<string, unknown>): void {
   const response = {
     success: true,
     ...data,
     platform: process.platform,
-    version: require('../package.json').version
+    version: (require('../package.json') as { version: string }).version
   }
   console.log(JSON.stringify(response, null, 2))
 }
 
-function init () {
+function init(): void {
   if (cmd === 'version' || argv.version) {
     version()
   } else if (cmd === 'list' || cmd === 'ls') {
@@ -125,13 +149,13 @@ function init () {
     reset(devices)
   } else if (cmd === 'normalize') {
     const mac = argv._[1]
-    normalize(mac)
+    normalizeCmd(mac)
   } else {
     help()
   }
 }
 
-function help () {
+function help(): void {
   const message = stripIndent`
     spoof - Spoof your MAC address
 
@@ -164,8 +188,8 @@ function help () {
   console.log(message)
 }
 
-function version () {
-  const ver = require('../package.json').version
+function version(): void {
+  const ver = (require('../package.json') as { version: string }).version
   if (isJson) {
     outputJson({ version: ver })
   } else {
@@ -173,10 +197,10 @@ function version () {
   }
 }
 
-function set (mac, devices) {
+function set(mac: string, devices: string[]): void {
   verbose(`Setting MAC address to ${mac} for devices: ${devices.join(', ')}`)
 
-  const results = []
+  const results: OperationResult[] = []
 
   devices.forEach(device => {
     verbose(`Looking up device: ${device}`)
@@ -197,7 +221,7 @@ function set (mac, devices) {
     verbose(`Found device ${it.device} (${it.port}) with current MAC: ${it.currentAddress}`)
 
     if (isDryRun) {
-      const result = {
+      const result: OperationResult = {
         device: it.device,
         port: it.port,
         currentAddress: it.currentAddress,
@@ -223,7 +247,7 @@ function set (mac, devices) {
   }
 }
 
-function normalize (mac) {
+function normalizeCmd(mac: string): void {
   verbose(`Normalizing MAC address: ${mac}`)
   const normalized = spoof.normalize(mac)
   if (isJson) {
@@ -233,13 +257,13 @@ function normalize (mac) {
   }
 }
 
-function randomize (devices) {
+function randomize(devices: string[]): void {
   verbose(`Randomizing MAC address for devices: ${devices.join(', ')}`)
   if (argv.local) {
     verbose('Using locally administered address flag')
   }
 
-  const results = []
+  const results: OperationResult[] = []
 
   devices.forEach(device => {
     verbose(`Looking up device: ${device}`)
@@ -261,7 +285,7 @@ function randomize (devices) {
     verbose(`Generated random MAC: ${mac} for ${it.device}`)
 
     if (isDryRun) {
-      const result = {
+      const result: OperationResult = {
         device: it.device,
         port: it.port,
         currentAddress: it.currentAddress,
@@ -287,10 +311,10 @@ function randomize (devices) {
   }
 }
 
-function reset (devices) {
+function reset(devices: string[]): void {
   verbose(`Resetting MAC address to hardware default for devices: ${devices.join(', ')}`)
 
-  const results = []
+  const results: OperationResult[] = []
 
   devices.forEach(device => {
     verbose(`Looking up device: ${device}`)
@@ -323,7 +347,7 @@ function reset (devices) {
     verbose(`Found device ${it.device} (${it.port}) - hardware MAC: ${it.address}, current: ${it.currentAddress}`)
 
     if (isDryRun) {
-      const result = {
+      const result: OperationResult = {
         device: it.device,
         port: it.port,
         currentAddress: it.currentAddress,
@@ -349,10 +373,10 @@ function reset (devices) {
   }
 }
 
-function list () {
+function list(): void {
   verbose('Listing network interfaces')
 
-  const targets = []
+  const targets: string[] = []
   if (argv.wifi) {
     verbose('Filtering for Wi-Fi interfaces only')
     targets.push('wi-fi')
@@ -362,7 +386,7 @@ function list () {
   verbose(`Found ${interfaces.length} interface(s)`)
 
   if (isJson) {
-    const formatted = interfaces.map(it => ({
+    const formatted = interfaces.map((it: NetworkInterface) => ({
       port: it.port,
       device: it.device,
       address: it.address || null,
@@ -373,8 +397,8 @@ function list () {
     return
   }
 
-  interfaces.forEach(it => {
-    const line = []
+  interfaces.forEach((it: NetworkInterface) => {
+    const line: string[] = []
     line.push('-', chalk.bold.green(it.port), 'on device', chalk.bold.green(it.device))
     if (it.address) {
       line.push('with MAC address', chalk.bold.cyan(it.address))
@@ -386,10 +410,10 @@ function list () {
   })
 }
 
-function setMACAddress (device, mac, port) {
+function setMACAddress(device: string, mac: string, port: string): void {
   verbose(`Checking permissions for MAC address change on ${device}`)
 
-  if (process.platform !== 'win32' && process.getuid() !== 0) {
+  if (process.platform !== 'win32' && process.getuid && process.getuid() !== 0) {
     throw new Error('Must run as root (or using sudo) to change network settings')
   }
 

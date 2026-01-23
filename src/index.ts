@@ -4,10 +4,12 @@ import { randomInt as cryptoRandomInt } from 'node:crypto'
 import { quote } from 'shell-quote'
 import zeroFill from 'zero-fill'
 import { createRequire } from 'module'
+import type { NetworkInterface, RandomFunction } from './types.js'
 
 // winreg is CommonJS-only, use createRequire for compatibility
 const require = createRequire(import.meta.url)
-const Winreg = require('winreg')
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Winreg = require('winreg') as typeof import('winreg')
 
 // Windows registry key for interface MAC. Checked on Windows 7
 const WIN_REGISTRY_PATH = '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}'
@@ -25,9 +27,8 @@ let preferIfconfig = false
 
 /**
  * Check if the `ip` command (iproute2) is available on the system.
- * @return {boolean}
  */
-function hasIpCommand () {
+function hasIpCommand(): boolean {
   try {
     cp.execSync('which ip', { stdio: 'pipe' })
     return true
@@ -42,19 +43,16 @@ const ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
 /**
  * Set whether to prefer ifconfig over ip command on Linux.
  * Useful for users who want legacy behavior or compatibility testing.
- * @param {boolean} value - true to prefer ifconfig, false to prefer ip
  */
-function setPreferIfconfig (value) {
+function setPreferIfconfig(value: boolean): void {
   preferIfconfig = Boolean(value)
 }
 
 /**
  * Returns the list of interfaces found on this machine as reported by the
  * `networksetup` command.
- * @param {Array.<string>|null} [targets] - Optional array of targets to match
- * @return {Array.<Object>}
  */
-function findInterfaces (targets) {
+function findInterfaces(targets?: string[]): NetworkInterface[] {
   if (!targets) targets = []
 
   targets = targets.map(target => target.toLowerCase())
@@ -66,9 +64,11 @@ function findInterfaces (targets) {
   } else if (process.platform === 'win32') {
     return findInterfacesWin32(targets)
   }
+
+  return []
 }
 
-function findInterfacesDarwin (targets) {
+function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
   // Parse the output of `networksetup -listallhardwareports` which gives
   // us 3 fields per port:
   // - the port name,
@@ -77,7 +77,7 @@ function findInterfacesDarwin (targets) {
 
   let output = cp.execSync('networksetup -listallhardwareports').toString()
 
-  const details = []
+  const details: string[] = []
   while (true) {
     const result = /(?:Hardware Port|Device|Ethernet Address): (.+)/.exec(output)
     if (!result || !result[1]) {
@@ -87,7 +87,7 @@ function findInterfacesDarwin (targets) {
     output = output.slice(result.index + result[1].length)
   }
 
-  const interfaces = [] // to return
+  const interfaces: NetworkInterface[] = [] // to return
 
   // Split the results into chunks of 3 (for our three fields) and yield
   // those that match `targets`.
@@ -96,9 +96,9 @@ function findInterfacesDarwin (targets) {
     const device = details[i + 1]
     const rawAddress = details[i + 2]
     const addressMatch = MAC_ADDRESS_RE.exec(rawAddress.toUpperCase())
-    const address = addressMatch ? normalize(addressMatch[0]) : null
+    const address = addressMatch ? normalize(addressMatch[0]) ?? null : null
 
-    const it = {
+    const it: NetworkInterface = {
       address,
       currentAddress: getInterfaceMAC(device),
       device,
@@ -126,10 +126,8 @@ function findInterfacesDarwin (targets) {
 /**
  * Dispatcher for Linux interface discovery.
  * Uses `ip` command if available (and not preferring ifconfig), falls back to `ifconfig`.
- * @param {Array.<string>} targets
- * @return {Array.<Object>}
  */
-function findInterfacesLinux (targets) {
+function findInterfacesLinux(targets: string[]): NetworkInterface[] {
   if (!preferIfconfig && ipCommandAvailable) {
     return findInterfacesLinuxIp(targets)
   }
@@ -139,15 +137,13 @@ function findInterfacesLinux (targets) {
 /**
  * Parse Linux interfaces using the `ip link show` command (iproute2).
  * This is the modern approach for Linux distributions that don't include net-tools.
- * @param {Array.<string>} targets
- * @return {Array.<Object>}
  */
-function findInterfacesLinuxIp (targets) {
+function findInterfacesLinuxIp(targets: string[]): NetworkInterface[] {
   const output = cp.execSync('ip link show', { stdio: 'pipe' }).toString()
   const lines = output.split('\n')
 
-  const interfaces = []
-  let currentDevice = null
+  const interfaces: NetworkInterface[] = []
+  let currentDevice: string | null = null
   let currentFlags = ''
 
   for (let i = 0; i < lines.length; i++) {
@@ -166,11 +162,11 @@ function findInterfacesLinuxIp (targets) {
     // Match MAC address line: "    link/ether 00:11:22:33:44:55 brd ff:ff:ff:ff:ff:ff"
     const macMatch = /^\s+link\/ether\s+([0-9a-f:]+)/i.exec(line)
     if (macMatch && currentDevice) {
-      const address = normalize(macMatch[1])
+      const address = normalize(macMatch[1]) ?? null
       // Determine port type based on device name and flags
       const port = getLinuxPortType(currentDevice, currentFlags)
 
-      const it = {
+      const it: NetworkInterface = {
         address,
         currentAddress: getInterfaceMACLinux(currentDevice),
         device: currentDevice,
@@ -198,11 +194,8 @@ function findInterfacesLinuxIp (targets) {
 
 /**
  * Determine the port type for a Linux interface based on device name.
- * @param {string} device - Device name (e.g., 'eth0', 'wlan0', 'enp0s3')
- * @param {string} _flags - Interface flags from ip link output (reserved for future use)
- * @return {string}
  */
-function getLinuxPortType (device, _flags) {
+function getLinuxPortType(device: string, _flags: string): string {
   // Wireless interfaces typically have names starting with 'wl' or 'wlan'
   if (device.startsWith('wl') || device.startsWith('wlan')) {
     return 'Wi-Fi'
@@ -229,16 +222,14 @@ function getLinuxPortType (device, _flags) {
 
 /**
  * Get current MAC address using `ip link show` for a specific device.
- * @param {string} device
- * @return {string|null}
  */
-function getInterfaceMACLinux (device) {
+function getInterfaceMACLinux(device: string): string | null {
   // Try ip command first if available
   if (ipCommandAvailable && !preferIfconfig) {
     try {
       const output = cp.execSync(quote(['ip', 'link', 'show', device]), { stdio: 'pipe' }).toString()
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
-      return macMatch ? normalize(macMatch[1]) : null
+      return macMatch ? normalize(macMatch[1]) ?? null : null
     } catch {
       // Fall through to ifconfig
     }
@@ -247,7 +238,7 @@ function getInterfaceMACLinux (device) {
   try {
     const output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
     const address = MAC_ADDRESS_RE.exec(output)
-    return address ? normalize(address[0]) : null
+    return address ? normalize(address[0]) ?? null : null
   } catch {
     return null
   }
@@ -255,10 +246,8 @@ function getInterfaceMACLinux (device) {
 
 /**
  * Get current MAC address using `getmac /v /fo csv` for a specific Windows device.
- * @param {string} device - The connection name (e.g., "Ethernet", "Wi-Fi")
- * @return {string|null}
  */
-function getInterfaceMACWin32 (device) {
+function getInterfaceMACWin32(device: string): string | null {
   try {
     const output = cp.execSync('getmac /v /fo csv', { stdio: 'pipe' }).toString()
     const lines = output.trim().split('\n')
@@ -278,7 +267,7 @@ function getInterfaceMACWin32 (device) {
         // Match by connection name (case-insensitive)
         if (connectionName.toLowerCase() === device.toLowerCase()) {
           // getmac returns MAC in format XX-XX-XX-XX-XX-XX
-          return normalize(physicalAddress)
+          return normalize(physicalAddress) ?? null
         }
       }
     }
@@ -291,11 +280,9 @@ function getInterfaceMACWin32 (device) {
 /**
  * Parse a CSV line respecting quoted fields.
  * Handles fields like: "Connection Name","Value with, comma","Simple"
- * @param {string} line
- * @return {Array.<string>}
  */
-function parseCSVLine (line) {
-  const fields = []
+function parseCSVLine(line: string): string[] {
+  const fields: string[] = []
   let current = ''
   let inQuotes = false
 
@@ -325,10 +312,8 @@ function parseCSVLine (line) {
 
 /**
  * Parse Linux interfaces using the `ifconfig` command (net-tools - legacy).
- * @param {Array.<string>} targets
- * @return {Array.<Object>}
  */
-function findInterfacesLinuxIfconfig (targets) {
+function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   // Parse the output of `ifconfig` which gives us:
   // - the adapter description
   // - the adapter name/device associated with this, if any,
@@ -336,7 +321,7 @@ function findInterfacesLinuxIfconfig (targets) {
 
   let output = cp.execSync('ifconfig', { stdio: 'pipe' }).toString()
 
-  const details = []
+  const details: string[] = []
   while (true) {
     const result = /(.*?)HWaddr(.*)/mi.exec(output)
     if (!result || !result[1] || !result[2]) {
@@ -346,23 +331,24 @@ function findInterfacesLinuxIfconfig (targets) {
     output = output.slice(result.index + result[0].length)
   }
 
-  const interfaces = []
+  const interfaces: NetworkInterface[] = []
 
   for (let i = 0; i < details.length; i += 2) {
     const s = details[i].split(':')
 
-    let device, port
+    let device = ''
+    let port = ''
     if (s.length >= 2) {
       device = s[0].split(' ')[0]
       port = s[1].trim()
     }
 
-    let address = details[i + 1].trim()
+    let address: string | null = details[i + 1].trim()
     if (address) {
-      address = normalize(address)
+      address = normalize(address) ?? null
     }
 
-    const it = {
+    const it: NetworkInterface = {
       address,
       currentAddress: getInterfaceMAC(device),
       device,
@@ -387,17 +373,16 @@ function findInterfacesLinuxIfconfig (targets) {
   return interfaces
 }
 
-function findInterfacesWin32 (targets) {
+function findInterfacesWin32(targets: string[]): NetworkInterface[] {
   const output = cp.execSync('ipconfig /all', { stdio: 'pipe' }).toString()
 
-  const interfaces = []
+  const interfaces: NetworkInterface[] = []
   const lines = output.split('\n')
-  /** @type {{ port: string, device: string, address?: string, currentAddress?: string, description?: string } | null} */
-  let it = null
+  let it: NetworkInterface | null = null
   for (let i = 0; i < lines.length; i++) {
     // Check if new device
-    let result
-    if (lines[i].substr(0, 1).match(/[A-Z]/)) {
+    let result: RegExpExecArray | null
+    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
       if (it !== null) {
         if (targets.length === 0) {
           // Not trying to match anything in particular, return everything.
@@ -415,10 +400,12 @@ function findInterfacesWin32 (targets) {
 
       it = {
         port: '',
-        device: ''
+        device: '',
+        address: null,
+        currentAddress: null
       }
 
-      const result = /adapter (.+?):/.exec(lines[i])
+      result = /adapter (.+?):/.exec(lines[i])
       if (!result) {
         continue
       }
@@ -433,7 +420,7 @@ function findInterfacesWin32 (targets) {
     // Try to find address
     result = /Physical Address.+?:(.*)/mi.exec(lines[i])
     if (result) {
-      it.address = normalize(result[1].trim())
+      it.address = normalize(result[1].trim()) ?? null
       // Get current MAC using getmac command, fallback to hardware address
       it.currentAddress = getInterfaceMACWin32(it.device) || it.address
       continue
@@ -451,10 +438,8 @@ function findInterfacesWin32 (targets) {
 
 /**
  * Returns the first interface which matches `target`
- * @param  {string} target
- * @return {Object}
  */
-function findInterface (target) {
+function findInterface(target: string): NetworkInterface | undefined {
   const interfaces = findInterfaces([target])
   return interfaces && interfaces[0]
 }
@@ -462,11 +447,10 @@ function findInterface (target) {
 /**
  * Returns currently-set MAC address of given interface. This is distinct from the
  * interface's hardware MAC address.
- * @return {string}
  */
-function getInterfaceMAC (device) {
+function getInterfaceMAC(device: string): string | null {
   if (process.platform === 'darwin' || process.platform === 'linux') {
-    let output
+    let output: string
     try {
       output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
     } catch {
@@ -474,10 +458,11 @@ function getInterfaceMAC (device) {
     }
 
     const address = MAC_ADDRESS_RE.exec(output)
-    return address && normalize(address[0])
+    return address ? normalize(address[0]) ?? null : null
   } else if (process.platform === 'win32') {
     return getInterfaceMACWin32(device)
   }
+  return null
 }
 
 /**
@@ -486,12 +471,8 @@ function getInterfaceMAC (device) {
  * Device varies by platform:
  *   OS X, Linux: this is the interface name in ifconfig
  *   Windows: this is the network adapter name in ipconfig
- *
- * @param {string} device
- * @param {string} mac
- * @param {string=} port
  */
-function setInterfaceMAC (device, mac, port) {
+function setInterfaceMAC(device: string, mac: string, port?: string): void {
   if (!MAC_ADDRESS_RE.exec(mac)) {
     throw new Error(mac + ' is not a valid MAC address')
   }
@@ -554,7 +535,7 @@ function setInterfaceMAC (device, mac, port) {
       key: WIN_REGISTRY_PATH
     })
 
-    regKey.keys((err, keys) => {
+    regKey.keys((err: Error | null, keys: Winreg.Registry[]) => {
       if (err) {
         console.log('ERROR: ' + err)
       } else {
@@ -570,12 +551,8 @@ function setInterfaceMAC (device, mac, port) {
 /**
  * Tries to set the "NetworkAddress" value on the specified registry key for given
  * `device` to `mac`.
- *
- * @param {string} key
- * @param {string} device
- * @param {string} mac
  */
-function tryWindowsKey (key, device, mac) {
+function tryWindowsKey(key: string, device: string, mac: string): boolean {
   // Skip the Properties key to avoid problems with permissions
   if (key.indexOf('Properties') > -1) {
     return false
@@ -589,7 +566,7 @@ function tryWindowsKey (key, device, mac) {
   // we need to format the MAC a bit for Windows
   mac = mac.replace(/:/g, '')
 
-  networkAdapterKeyPath.values((err, values) => {
+  networkAdapterKeyPath.values((err: Error | null, values: Winreg.RegistryItem[]) => {
     let gotAdapter = false
     if (err) {
       console.log('ERROR: ' + err)
@@ -613,18 +590,18 @@ function tryWindowsKey (key, device, mac) {
       }
     }
   })
+
+  return false
 }
 
 /**
  * Generates and returns a random MAC address.
- * @param  {boolean=} localAdmin  locally administered address
- * @return {string}
  */
-function randomize (localAdmin) {
+function randomize(localAdmin?: boolean): string {
   // Randomly assign a VM vendor's MAC address prefix, which should
   // decrease chance of colliding with existing device's addresses.
 
-  const vendors = [
+  const vendors: [number, number, number][] = [
     [0x00, 0x05, 0x69], // VMware
     [0x00, 0x50, 0x56], // VMware
     [0x00, 0x0C, 0x29], // VMware
@@ -637,7 +614,7 @@ function randomize (localAdmin) {
 
   // Windows needs specific prefixes sometimes
   // http://www.wikihow.com/Change-a-Computer's-Mac-Address-in-Windows
-  const windowsPrefixes = [
+  const windowsPrefixes: number[] = [
     0xD2,
     0xD6,
     0xDA,
@@ -650,7 +627,7 @@ function randomize (localAdmin) {
     vendor[0] = windowsPrefixes[random(0, 3)]
   }
 
-  const mac = [
+  const mac: number[] = [
     vendor[0],
     vendor[1],
     vendor[2],
@@ -685,11 +662,8 @@ function randomize (localAdmin) {
  *      - 0000.0000.0000
  *
  *  ... and returns it in the format 00:00:00:00:00:00.
- *
- * @param  {string} mac
- * @return {string}
  */
-function normalize (mac) {
+function normalize(mac: string): string | undefined {
   let m = CISCO_MAC_ADDRESS_RE.exec(mac)
   if (m) {
     const halfwords = m.slice(1)
@@ -707,10 +681,12 @@ function normalize (mac) {
       .join(':')
       .toUpperCase()
   }
+
+  return undefined
 }
 
-function chunk (str, n) {
-  const arr = []
+function chunk(str: string, n: number): string[] {
+  const arr: string[] = []
   for (let i = 0; i < str.length; i += n) {
     arr.push(str.slice(i, i + n))
   }
@@ -719,34 +695,27 @@ function chunk (str, n) {
 
 /**
  * Default cryptographically secure random function.
- * @param  {number} min
- * @param  {number} max
- * @return {number}
  */
-function defaultRandom (min, max) {
+function defaultRandom(min: number, max: number): number {
   return cryptoRandomInt(min, max + 1) // cryptoRandomInt max is exclusive
 }
 
 // Current random function (can be swapped for testing)
-let randomFn = defaultRandom
+let randomFn: RandomFunction = defaultRandom
 
 /**
  * Return a random integer between min and max (inclusive).
  * Uses crypto.randomInt by default for cryptographically secure randomness.
- * @param  {number} min
- * @param  {number} max
- * @return {number}
  */
-function random (min, max) {
+function random(min: number, max: number): number {
   return randomFn(min, max)
 }
 
 /**
  * Set a custom random function for testing purposes.
  * Pass null to restore the default cryptographically secure random function.
- * @param {((min: number, max: number) => number)|null} fn - Custom random function or null to reset
  */
-function setRandomFunction (fn) {
+function setRandomFunction(fn: RandomFunction | null): void {
   randomFn = fn === null ? defaultRandom : fn
 }
 
@@ -760,3 +729,5 @@ export {
   setPreferIfconfig,
   setRandomFunction
 }
+
+export type { NetworkInterface, RandomFunction } from './types.js'

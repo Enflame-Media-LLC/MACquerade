@@ -16,7 +16,7 @@ import esmock from 'esmock'
 test('setInterfaceMAC - throws on invalid MAC format', async t => {
   const mockExecSync = () => Buffer.from('')
 
-  const spoof = await esmock('../index.js', {
+  const spoof = await esmock('../dist/index.js', {
     'child_process': {
       execSync: mockExecSync
     }
@@ -56,7 +56,7 @@ test('setInterfaceMAC - accepts various valid MAC formats', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -109,7 +109,7 @@ test('setInterfaceMAC darwin - calls correct ifconfig command', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -143,7 +143,7 @@ test('setInterfaceMAC darwin wifi - power cycles airport', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -183,7 +183,7 @@ test('setInterfaceMAC darwin - handles command failure', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -223,7 +223,7 @@ test('setInterfaceMAC linux - uses ip command when available', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -272,7 +272,7 @@ test('setInterfaceMAC linux - handles ip command failure', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -312,7 +312,7 @@ test('setInterfaceMAC linux - uses ifconfig when ip not available', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -350,7 +350,7 @@ test('setInterfaceMAC linux - respects preferIfconfig setting', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -402,7 +402,7 @@ test('getInterfaceMAC darwin - parses ifconfig output', async t => {
 
   try {
     // We need to test getInterfaceMAC indirectly through findInterfaces
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: (cmd) => {
           if (cmd === 'networksetup -listallhardwareports') {
@@ -449,7 +449,7 @@ test('getInterfaceMAC linux - uses ip command when available', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -491,7 +491,7 @@ test('getInterfaceMAC linux - falls back to ifconfig', async t => {
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }
@@ -536,7 +536,7 @@ Ethernet Address: AA:BB:CC:DD:EE:FF`)
   const originalPlatform = process.platform
 
   try {
-    const spoof = await esmock('../index.js', {
+    const spoof = await esmock('../dist/index.js', {
       'child_process': {
         execSync: mockExecSync
       }

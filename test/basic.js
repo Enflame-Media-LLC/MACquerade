@@ -1,4 +1,4 @@
-import * as spoof from '../index.js'
+import * as spoof from '../dist/index.js'
 import test from 'tape'
 import { randomInt } from 'node:crypto'
 
