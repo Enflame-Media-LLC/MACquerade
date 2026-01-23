@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
-const chalk = require('chalk')
-const minimist = require('minimist')
-const spoof = require('../')
-const { stripIndent } = require('common-tags')
+import chalk from 'chalk'
+import minimist from 'minimist'
+import * as spoof from '../index.js'
+import { stripIndent } from 'common-tags'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
 
 const argv = minimist(process.argv.slice(2), {
   alias: {

@@ -1,5 +1,5 @@
-const spoof = require('../')
-const test = require('tape')
+import * as spoof from '../index.js'
+import test from 'tape'
 
 test('spoof.normalize()', t => {
   t.equal(spoof.normalize('00:00:00:00:00:00'), '00:00:00:00:00:00')

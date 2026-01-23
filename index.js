@@ -1,19 +1,12 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
-module.exports = {
-  findInterface,
-  findInterfaces,
-  normalize,
-  randomize,
-  setInterfaceMAC
-}
+import cp from 'child_process'
+import { quote } from 'shell-quote'
+import zeroFill from 'zero-fill'
+import { createRequire } from 'module'
 
-const cp = require('child_process')
-const quote = require('shell-quote').quote
-const zeroFill = require('zero-fill')
+// winreg is CommonJS-only, use createRequire for compatibility
+const require = createRequire(import.meta.url)
 const Winreg = require('winreg')
-
-// Path to Airport binary on macOS 10.7+
-const PATH_TO_AIRPORT = '/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport'
 
 // Windows registry key for interface MAC. Checked on Windows 7
 const WIN_REGISTRY_PATH = '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}'
@@ -30,7 +23,7 @@ const CISCO_MAC_ADDRESS_RE = /([0-9A-F]{0,4})\.([0-9A-F]{0,4})\.([0-9A-F]{0,4})/
  * Returns the list of interfaces found on this machine as reported by the
  * `networksetup` command.
  * @param {Array.<string>|null} targets
- * @return {Array.<Object>)}
+ * @return {Array.<Object>}
  */
 function findInterfaces (targets) {
   if (!targets) targets = []
@@ -72,18 +65,15 @@ function findInterfacesDarwin (targets) {
   for (let i = 0; i < details.length; i += 3) {
     const port = details[i]
     const device = details[i + 1]
-    let address = details[i + 2]
-
-    address = MAC_ADDRESS_RE.exec(address.toUpperCase())
-    if (address) {
-      address = normalize(address[0])
-    }
+    const rawAddress = details[i + 2]
+    const addressMatch = MAC_ADDRESS_RE.exec(rawAddress.toUpperCase())
+    const address = addressMatch ? normalize(addressMatch[0]) : null
 
     const it = {
-      address: address,
+      address,
       currentAddress: getInterfaceMAC(device),
-      device: device,
-      port: port
+      device,
+      port
     }
 
     if (targets.length === 0) {
@@ -139,10 +129,10 @@ function findInterfacesLinux (targets) {
     }
 
     const it = {
-      address: address,
+      address,
       currentAddress: getInterfaceMAC(device),
-      device: device,
-      port: port
+      device,
+      port
     }
 
     if (targets.length === 0) {
@@ -168,12 +158,13 @@ function findInterfacesWin32 (targets) {
 
   const interfaces = []
   const lines = output.split('\n')
-  let it = false
+  /** @type {{ port: string, device: string, address?: string, currentAddress?: string, description?: string } | null} */
+  let it = null
   for (let i = 0; i < lines.length; i++) {
     // Check if new device
     let result
     if (lines[i].substr(0, 1).match(/[A-Z]/)) {
-      if (it) {
+      if (it !== null) {
         if (targets.length === 0) {
           // Not trying to match anything in particular, return everything.
           interfaces.push(it)
@@ -243,7 +234,7 @@ function getInterfaceMAC (device) {
     let output
     try {
       output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
-    } catch (err) {
+    } catch {
       return null
     }
 
@@ -274,26 +265,21 @@ function setInterfaceMAC (device, mac, port) {
 
   if (process.platform === 'darwin') {
     if (isWirelessPort) {
-      // Turn on the device, assuming it's an airport device.
+      // Turn off the device, assuming it's an airport device, to disassociate from any
+      // networks and then turn it back on so we can change the MAC.
       try {
+        cp.execSync(quote(['networksetup', '-setairportpower', device, 'off']))
         cp.execSync(quote(['networksetup', '-setairportpower', device, 'on']))
       } catch (err) {
-        throw new Error('Unable to power on wifi device')
+        throw new Error('Unable to power cycle wifi device', { cause: err })
       }
-    }
-
-    // For some reason this seems to be required even when changing a non-airport device.
-    try {
-      cp.execSync(quote([PATH_TO_AIRPORT, '-z']))
-    } catch (err) {
-      throw new Error('Unable to disassociate from wifi networks')
     }
 
     // Change the MAC.
     try {
       cp.execSync(quote(['ifconfig', device, 'ether', mac]))
     } catch (err) {
-      throw new Error('Unable to change MAC address')
+      throw new Error('Unable to change MAC address', { cause: err })
     }
 
     // Restart airport so it will associate with known networks (if any)
@@ -302,7 +288,7 @@ function setInterfaceMAC (device, mac, port) {
         cp.execSync(quote(['networksetup', '-setairportpower', device, 'off']))
         cp.execSync(quote(['networksetup', '-setairportpower', device, 'on']))
       } catch (err) {
-        throw new Error('Unable to set restart wifi device')
+        throw new Error('Unable to restart wifi device', { cause: err })
       }
     }
   } else if (process.platform === 'linux') {
@@ -312,7 +298,7 @@ function setInterfaceMAC (device, mac, port) {
       cp.execSync(quote(['ifconfig', device, 'down', 'hw', 'ether', mac]))
       cp.execSync(quote(['ifconfig', device, 'up']))
     } catch (err) {
-      throw new Error('Unable to change MAC address')
+      throw new Error('Unable to change MAC address', { cause: err })
     }
   } else if (process.platform === 'win32') {
     // Locate adapter's registry and update network address (mac)
@@ -350,7 +336,7 @@ function tryWindowsKey (key, device, mac) {
 
   const networkAdapterKeyPath = new Winreg({
     hive: Winreg.HKLM,
-    key: key
+    key
   })
 
   // we need to format the MAC a bit for Windows
@@ -374,7 +360,7 @@ function tryWindowsKey (key, device, mac) {
             cp.execSync('netsh interface set interface "' + device + '" disable')
             cp.execSync('netsh interface set interface "' + device + '" enable')
           } catch (err) {
-            throw new Error('Unable to restart device, is the cmd running as admin?')
+            throw new Error('Unable to restart device, is the cmd running as admin?', { cause: err })
           }
         })
       }
@@ -384,7 +370,7 @@ function tryWindowsKey (key, device, mac) {
 
 /**
  * Generates and returns a random MAC address.
- * @param  {boolean} localAdmin  locally administered address
+ * @param  {boolean=} localAdmin  locally administered address
  * @return {string}
  */
 function randomize (localAdmin) {
@@ -405,13 +391,13 @@ function randomize (localAdmin) {
   // Windows needs specific prefixes sometimes
   // http://www.wikihow.com/Change-a-Computer's-Mac-Address-in-Windows
   const windowsPrefixes = [
-    'D2',
-    'D6',
-    'DA',
-    'DE'
+    0xD2,
+    0xD6,
+    0xDA,
+    0xDE
   ]
 
-  const vendor = vendors[random(0, vendors.length - 1)]
+  const vendor = [...vendors[random(0, vendors.length - 1)]]
 
   if (process.platform === 'win32') {
     vendor[0] = windowsPrefixes[random(0, 3)]
@@ -492,4 +478,12 @@ function chunk (str, n) {
  */
 function random (min, max) {
   return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+export {
+  findInterface,
+  findInterfaces,
+  normalize,
+  randomize,
+  setInterfaceMAC
 }

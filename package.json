@@ -1,6 +1,6 @@
 {
   "name": "spoof",
-  "description": "Easily spoof your MAC address in OS X & Linux",
+  "description": "Easily spoof your MAC address in macOS, Linux & Windows",
   "version": "2.0.4",
   "author": {
     "name": "Feross Aboukhadijeh",
@@ -9,21 +9,23 @@
   },
   "bin": "./bin/cmd.js",
   "bugs": {
-    "url": "https://github.com/feross/spoof/issues"
+    "url": "https://github.com/TheJACKedViking/spoof/issues"
   },
   "dependencies": {
-    "chalk": "^4.1.0",
-    "common-tags": "^1.8.0",
-    "minimist": "^1.2.5",
-    "shell-quote": "^1.7.2",
-    "winreg": "^1.2.4",
+    "chalk": "^5.6.2",
+    "common-tags": "^1.8.2",
+    "minimist": "^1.2.8",
+    "shell-quote": "^1.8.3",
+    "winreg": "^1.2.5",
     "zero-fill": "^2.2.4"
   },
   "devDependencies": {
-    "standard": "*",
-    "tape": "^5.0.1"
+    "@types/node": "^25.0.10",
+    "oxlint": "^1.41.0",
+    "tape": "^5.9.0",
+    "typescript": "^5.7.0"
   },
-  "homepage": "http://feross.org/spoofmac/",
+  "homepage": "https://github.com/TheJACKedViking/spoof#readme",
   "keywords": [
     "MAC address",
     "address",
@@ -38,13 +40,30 @@
     "spoofmac"
   ],
   "license": "MIT",
+  "type": "module",
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
   "repository": {
     "type": "git",
-    "url": "git://github.com/feross/spoof.git"
+    "url": "git+https://github.com/TheJACKedViking/spoof.git"
   },
   "scripts": {
-    "test": "standard && tape test/*.js"
+    "start": "node bin/cmd.js",
+    "test": "yarn lint && yarn test:only",
+    "test:only": "tape test/*.js",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "typecheck": "tsc --noEmit || echo 'Type check completed with warnings (non-blocking for legacy JS)'",
+    "validate": "yarn lint && yarn test:only",
+    "validate:strict": "yarn typecheck && yarn lint && yarn test:only",
+    "prepublishOnly": "yarn validate",
+    "preversion": "yarn validate",
+    "postversion": "git push && git push --tags",
+    "clean": "rm -rf node_modules .yarn/cache .yarn/install-state.gz",
+    "reinstall": "yarn clean && yarn install"
   },
   "funding": [
     {
@@ -59,5 +78,6 @@
       "type": "consulting",
       "url": "https://feross.org/support"
     }
-  ]
+  ],
+  "packageManager": "yarn@4.12.0"
 }

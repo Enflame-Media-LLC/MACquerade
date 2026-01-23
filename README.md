@@ -9,7 +9,7 @@
 [standard-image]: https://img.shields.io/badge/code_style-standard-brightgreen.svg
 [standard-url]: https://standardjs.com
 
-### Easily spoof your MAC address in macOS, Windows, & Linux!
+### Easily spoof your MAC address in macOS, Windows, & Linux
 
 Node.js port of the popular [SpoofMAC](https://pypi.python.org/pypi/SpoofMAC/) Python utility (GitHub: [feross/SpoofMAC](https://github.com/feross/SpoofMAC)).
 
@@ -33,7 +33,7 @@ Here are some easy install instructions for complete beginners.
 
   ![terminal](img/spotlight-terminal.png)
 
-3. Install **spoof** by typing this command and pressing `Enter`.
+1. Install **spoof** by typing this command and pressing `Enter`.
 
   ```bash
   npm install spoof -g
@@ -41,19 +41,19 @@ Here are some easy install instructions for complete beginners.
 
   That's it! **spoof** is installed.
 
-3. Now, let's print out the **help page**. Just like before, run this command in **Terminal**.
+1. Now, let's print out the **help page**. Just like before, run this command in **Terminal**.
 
   ```bash
   spoof --help
   ```
 
-4. Now, let's print out all our network devices.
+1. Now, let's print out all our network devices.
 
   ```bash
   spoof list
   ```
 
-5. Find the device you want to set or randomize the MAC address for in the list. Wi-Fi is usually called `en0` on modern Macs. Then, run this command:
+1. Find the device you want to set or randomize the MAC address for in the list. Wi-Fi is usually called `en0` on modern Macs. Then, run this command:
 
   ```bash
   sudo spoof randomize en0
