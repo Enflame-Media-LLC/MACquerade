@@ -81,7 +81,8 @@
     "preversion": "yarn validate:strict",
     "postversion": "git push && git push --tags",
     "clean": "rm -rf node_modules dist .yarn/cache .yarn/install-state.gz",
-    "reinstall": "yarn clean && yarn install"
+    "reinstall": "yarn clean && yarn install",
+    "update-oui": "npx tsx scripts/update-oui.ts"
   },
   "funding": [
     {
