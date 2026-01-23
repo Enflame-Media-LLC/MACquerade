@@ -19,10 +19,38 @@ const MAC_ADDRESS_RE = /([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[
 // Example: 0123.4567.89ab
 const CISCO_MAC_ADDRESS_RE = /([0-9A-F]{0,4})\.([0-9A-F]{0,4})\.([0-9A-F]{0,4})/i
 
+// Linux tool detection and preference
+let preferIfconfig = false
+
+/**
+ * Check if the `ip` command (iproute2) is available on the system.
+ * @return {boolean}
+ */
+function hasIpCommand () {
+  try {
+    cp.execSync('which ip', { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Detect ip command availability at module load time (Linux only)
+const ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
+
+/**
+ * Set whether to prefer ifconfig over ip command on Linux.
+ * Useful for users who want legacy behavior or compatibility testing.
+ * @param {boolean} value - true to prefer ifconfig, false to prefer ip
+ */
+function setPreferIfconfig (value) {
+  preferIfconfig = Boolean(value)
+}
+
 /**
  * Returns the list of interfaces found on this machine as reported by the
  * `networksetup` command.
- * @param {Array.<string>|null} targets
+ * @param {Array.<string>|null} [targets] - Optional array of targets to match
  * @return {Array.<Object>}
  */
 function findInterfaces (targets) {
@@ -94,7 +122,144 @@ function findInterfacesDarwin (targets) {
   return interfaces
 }
 
+/**
+ * Dispatcher for Linux interface discovery.
+ * Uses `ip` command if available (and not preferring ifconfig), falls back to `ifconfig`.
+ * @param {Array.<string>} targets
+ * @return {Array.<Object>}
+ */
 function findInterfacesLinux (targets) {
+  if (!preferIfconfig && ipCommandAvailable) {
+    console.log('Using ip command (iproute2)')
+    return findInterfacesLinuxIp(targets)
+  }
+  console.log('Using ifconfig command (net-tools)')
+  return findInterfacesLinuxIfconfig(targets)
+}
+
+/**
+ * Parse Linux interfaces using the `ip link show` command (iproute2).
+ * This is the modern approach for Linux distributions that don't include net-tools.
+ * @param {Array.<string>} targets
+ * @return {Array.<Object>}
+ */
+function findInterfacesLinuxIp (targets) {
+  const output = cp.execSync('ip link show', { stdio: 'pipe' }).toString()
+  const lines = output.split('\n')
+
+  const interfaces = []
+  let currentDevice = null
+  let currentFlags = ''
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    // Match device line: "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> ..."
+    const deviceMatch = /^\d+:\s+(\S+?)[@:]/.exec(line)
+    if (deviceMatch) {
+      currentDevice = deviceMatch[1]
+      // Extract flags for later use (port type detection)
+      const flagsMatch = /<([^>]+)>/.exec(line)
+      currentFlags = flagsMatch ? flagsMatch[1] : ''
+      continue
+    }
+
+    // Match MAC address line: "    link/ether 00:11:22:33:44:55 brd ff:ff:ff:ff:ff:ff"
+    const macMatch = /^\s+link\/ether\s+([0-9a-f:]+)/i.exec(line)
+    if (macMatch && currentDevice) {
+      const address = normalize(macMatch[1])
+      // Determine port type based on device name and flags
+      const port = getLinuxPortType(currentDevice, currentFlags)
+
+      const it = {
+        address,
+        currentAddress: getInterfaceMACLinux(currentDevice),
+        device: currentDevice,
+        port
+      }
+
+      if (targets.length === 0) {
+        interfaces.push(it)
+      } else {
+        for (const target of targets) {
+          if (target === port.toLowerCase() || target === currentDevice.toLowerCase()) {
+            interfaces.push(it)
+            break
+          }
+        }
+      }
+
+      currentDevice = null
+      currentFlags = ''
+    }
+  }
+
+  return interfaces
+}
+
+/**
+ * Determine the port type for a Linux interface based on device name.
+ * @param {string} device - Device name (e.g., 'eth0', 'wlan0', 'enp0s3')
+ * @param {string} _flags - Interface flags from ip link output (reserved for future use)
+ * @return {string}
+ */
+function getLinuxPortType (device, _flags) {
+  // Wireless interfaces typically have names starting with 'wl' or 'wlan'
+  if (device.startsWith('wl') || device.startsWith('wlan')) {
+    return 'Wi-Fi'
+  }
+  // Ethernet interfaces: eth*, en*, em*
+  if (device.startsWith('eth') || device.startsWith('en') || device.startsWith('em')) {
+    return 'Ethernet'
+  }
+  // Loopback
+  if (device === 'lo') {
+    return 'Loopback'
+  }
+  // Bridge interfaces
+  if (device.startsWith('br') || device.startsWith('virbr')) {
+    return 'Bridge'
+  }
+  // Docker/container interfaces
+  if (device.startsWith('docker') || device.startsWith('veth')) {
+    return 'Virtual'
+  }
+  // Default
+  return device
+}
+
+/**
+ * Get current MAC address using `ip link show` for a specific device.
+ * @param {string} device
+ * @return {string|null}
+ */
+function getInterfaceMACLinux (device) {
+  // Try ip command first if available
+  if (ipCommandAvailable && !preferIfconfig) {
+    try {
+      const output = cp.execSync(quote(['ip', 'link', 'show', device]), { stdio: 'pipe' }).toString()
+      const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
+      return macMatch ? normalize(macMatch[1]) : null
+    } catch {
+      // Fall through to ifconfig
+    }
+  }
+  // Fallback to ifconfig
+  try {
+    const output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
+    const address = MAC_ADDRESS_RE.exec(output)
+    return address ? normalize(address[0]) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Parse Linux interfaces using the `ifconfig` command (net-tools - legacy).
+ * @param {Array.<string>} targets
+ * @return {Array.<Object>}
+ */
+function findInterfacesLinuxIfconfig (targets) {
   // Parse the output of `ifconfig` which gives us:
   // - the adapter description
   // - the adapter name/device associated with this, if any,
@@ -294,11 +459,25 @@ function setInterfaceMAC (device, mac, port) {
   } else if (process.platform === 'linux') {
     // Set the device's mac address.
     // Handles shutting down and starting back up interface.
-    try {
-      cp.execSync(quote(['ifconfig', device, 'down', 'hw', 'ether', mac]))
-      cp.execSync(quote(['ifconfig', device, 'up']))
-    } catch (err) {
-      throw new Error('Unable to change MAC address', { cause: err })
+    if (!preferIfconfig && ipCommandAvailable) {
+      // Use ip command (iproute2 - modern)
+      console.log('Setting MAC address using ip command (iproute2)')
+      try {
+        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'down']))
+        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'address', mac]))
+        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'up']))
+      } catch (err) {
+        throw new Error('Unable to change MAC address', { cause: err })
+      }
+    } else {
+      // Use ifconfig command (net-tools - legacy)
+      console.log('Setting MAC address using ifconfig command (net-tools)')
+      try {
+        cp.execSync(quote(['ifconfig', device, 'down', 'hw', 'ether', mac]))
+        cp.execSync(quote(['ifconfig', device, 'up']))
+      } catch (err) {
+        throw new Error('Unable to change MAC address', { cause: err })
+      }
     }
   } else if (process.platform === 'win32') {
     // Locate adapter's registry and update network address (mac)
@@ -485,5 +664,6 @@ export {
   findInterfaces,
   normalize,
   randomize,
-  setInterfaceMAC
+  setInterfaceMAC,
+  setPreferIfconfig
 }

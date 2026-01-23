@@ -13,10 +13,16 @@ const argv = minimist(process.argv.slice(2), {
     v: 'version'
   },
   boolean: [
-    'version'
+    'version',
+    'prefer-ifconfig'
   ]
 })
 const cmd = argv._[0]
+
+// Configure tool preference before any operations
+if (argv['prefer-ifconfig']) {
+  spoof.setPreferIfconfig(true)
+}
 
 try {
   init()
@@ -67,6 +73,7 @@ function help () {
     Options:
       --wifi          Try to only show wireless interfaces.
       --local         Set the locally administered flag on randomized MACs.
+      --prefer-ifconfig  On Linux, use ifconfig instead of ip command.
   `
   console.log(message)
 }
