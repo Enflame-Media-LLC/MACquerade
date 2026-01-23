@@ -131,10 +131,8 @@ function findInterfacesDarwin (targets) {
  */
 function findInterfacesLinux (targets) {
   if (!preferIfconfig && ipCommandAvailable) {
-    console.log('Using ip command (iproute2)')
     return findInterfacesLinuxIp(targets)
   }
-  console.log('Using ifconfig command (net-tools)')
   return findInterfacesLinuxIfconfig(targets)
 }
 
@@ -533,7 +531,6 @@ function setInterfaceMAC (device, mac, port) {
     // Handles shutting down and starting back up interface.
     if (!preferIfconfig && ipCommandAvailable) {
       // Use ip command (iproute2 - modern)
-      console.log('Setting MAC address using ip command (iproute2)')
       try {
         cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'down']))
         cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'address', mac]))
@@ -543,7 +540,6 @@ function setInterfaceMAC (device, mac, port) {
       }
     } else {
       // Use ifconfig command (net-tools - legacy)
-      console.log('Setting MAC address using ifconfig command (net-tools)')
       try {
         cp.execSync(quote(['ifconfig', device, 'down', 'hw', 'ether', mac]))
         cp.execSync(quote(['ifconfig', device, 'up']))
