@@ -36,3 +36,38 @@ test('spoof.findInterfaces()', t => {
   t.ok(Array.isArray(interfaces), 'findInterfaces returns an array')
   t.end()
 })
+
+test('spoof.parseCSVLine()', t => {
+  // Test that parseCSVLine is exported and callable
+  t.equal(typeof spoof.parseCSVLine, 'function', 'parseCSVLine is a function')
+
+  // Test basic CSV parsing
+  t.deepEqual(
+    spoof.parseCSVLine('"Ethernet","Intel Adapter","00-11-22-33-44-55","\\Device\\Tcpip"'),
+    ['Ethernet', 'Intel Adapter', '00-11-22-33-44-55', '\\Device\\Tcpip'],
+    'parses basic CSV line correctly'
+  )
+
+  // Test fields with commas inside quotes
+  t.deepEqual(
+    spoof.parseCSVLine('"Wi-Fi","Intel(R) Wireless, 802.11ac","AA-BB-CC-DD-EE-FF","\\Device"'),
+    ['Wi-Fi', 'Intel(R) Wireless, 802.11ac', 'AA-BB-CC-DD-EE-FF', '\\Device'],
+    'handles commas inside quoted fields'
+  )
+
+  // Test escaped quotes (two consecutive quotes)
+  t.deepEqual(
+    spoof.parseCSVLine('"Name with ""quotes""","Adapter","00-00-00-00-00-00",""'),
+    ['Name with "quotes"', 'Adapter', '00-00-00-00-00-00', ''],
+    'handles escaped quotes correctly'
+  )
+
+  // Test empty fields
+  t.deepEqual(
+    spoof.parseCSVLine('"","Empty","",""'),
+    ['', 'Empty', '', ''],
+    'handles empty quoted fields'
+  )
+
+  t.end()
+})

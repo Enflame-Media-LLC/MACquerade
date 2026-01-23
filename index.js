@@ -255,6 +255,76 @@ function getInterfaceMACLinux (device) {
 }
 
 /**
+ * Get current MAC address using `getmac /v /fo csv` for a specific Windows device.
+ * @param {string} device - The connection name (e.g., "Ethernet", "Wi-Fi")
+ * @return {string|null}
+ */
+function getInterfaceMACWin32 (device) {
+  try {
+    const output = cp.execSync('getmac /v /fo csv', { stdio: 'pipe' }).toString()
+    const lines = output.trim().split('\n')
+
+    // Skip header line, parse data lines
+    // CSV format: "Connection Name","Network Adapter","Physical Address","Transport Name"
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      // Parse CSV line respecting quoted fields
+      const fields = parseCSVLine(line)
+      if (fields.length >= 3) {
+        const connectionName = fields[0]
+        const physicalAddress = fields[2]
+
+        // Match by connection name (case-insensitive)
+        if (connectionName.toLowerCase() === device.toLowerCase()) {
+          // getmac returns MAC in format XX-XX-XX-XX-XX-XX
+          return normalize(physicalAddress)
+        }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Parse a CSV line respecting quoted fields.
+ * Handles fields like: "Connection Name","Value with, comma","Simple"
+ * @param {string} line
+ * @return {Array.<string>}
+ */
+function parseCSVLine (line) {
+  const fields = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+
+    if (char === '"') {
+      // Check for escaped quote (two consecutive quotes)
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++ // Skip next quote
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (char === ',' && !inQuotes) {
+      fields.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  // Push last field
+  fields.push(current)
+
+  return fields
+}
+
+/**
  * Parse Linux interfaces using the `ifconfig` command (net-tools - legacy).
  * @param {Array.<string>} targets
  * @return {Array.<Object>}
@@ -365,7 +435,8 @@ function findInterfacesWin32 (targets) {
     result = /Physical Address.+?:(.*)/mi.exec(lines[i])
     if (result) {
       it.address = normalize(result[1].trim())
-      it.currentAddress = it.address
+      // Get current MAC using getmac command, fallback to hardware address
+      it.currentAddress = getInterfaceMACWin32(it.device) || it.address
       continue
     }
 
@@ -406,7 +477,7 @@ function getInterfaceMAC (device) {
     const address = MAC_ADDRESS_RE.exec(output)
     return address && normalize(address[0])
   } else if (process.platform === 'win32') {
-    console.error('No windows support for this method yet - PR welcome!')
+    return getInterfaceMACWin32(device)
   }
 }
 
@@ -663,6 +734,7 @@ export {
   findInterface,
   findInterfaces,
   normalize,
+  parseCSVLine,
   randomize,
   setInterfaceMAC,
   setPreferIfconfig
