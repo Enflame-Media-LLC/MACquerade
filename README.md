@@ -118,6 +118,45 @@ spoof reset wi-fi
 On macOS, another option to reset your MAC address is to simply restart your
 computer. macOS doesn't preserve changes to your MAC address between restarts.
 
+### Randomize as a specific vendor *(requires root)*
+
+Want to appear as a specific device type? Use the `--vendor` flag:
+
+```bash
+spoof randomize en0 --vendor=apple    # Appear as an Apple device
+spoof randomize en0 --vendor=samsung  # Appear as a Samsung device
+spoof randomize en0 --vendor=intel    # Appear as an Intel NIC
+```
+
+### Look up vendor for a MAC address
+
+```bash
+spoof lookup 00:03:93:12:34:56
+Apple, Inc.
+```
+
+### Search the vendor database
+
+```bash
+spoof vendors apple
+00:03:93 - Apple, Inc.
+00:05:02 - Apple, Inc.
+...
+
+spoof vendors          # Show database stats
+OUI Database: 1691 prefixes from 98 vendors
+```
+
+The vendor search supports fuzzy matching, so minor typos are tolerated.
+
+### Update the OUI database
+
+To refresh the bundled OUI database from IEEE:
+
+```bash
+npm run update-oui
+```
+
 ## Linux support?
 
 Yep!
