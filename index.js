@@ -371,8 +371,8 @@ function tryWindowsKey (key, device, mac) {
       if (gotAdapter) {
         networkAdapterKeyPath.set('NetworkAddress', 'REG_SZ', mac, () => {
           try {
-            cp.execSync('netsh interface set interface "' + device + '" disable')
-            cp.execSync('netsh interface set interface "' + device + '" enable')
+            cp.execFileSync('netsh', ['interface', 'set', 'interface', device, 'disable'])
+            cp.execFileSync('netsh', ['interface', 'set', 'interface', device, 'enable'])
           } catch (err) {
             throw new Error('Unable to restart device, is the cmd running as admin?')
           }
