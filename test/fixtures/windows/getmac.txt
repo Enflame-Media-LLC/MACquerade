@@ -1,0 +1,4 @@
+"Connection Name","Network Adapter","Physical Address","Transport Name"
+"Ethernet","Intel(R) Ethernet Connection (2) I219-V","00-11-22-33-44-55","\Device\Tcpip_{12345678-1234-1234-1234-123456789012}"
+"Wi-Fi","Intel(R) Wireless-AC 9560","AA-BB-CC-DD-EE-FF","\Device\Tcpip_{ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB}"
+"Bluetooth Network Connection","Bluetooth Device (Personal Area Network)","11-22-33-44-55-66","Media disconnected"

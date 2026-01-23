@@ -367,3 +367,167 @@ test('CLI integration - normalize multiple MACs', t => {
 
   t.end()
 })
+
+// =============================================================================
+// JSON Format Tests
+// =============================================================================
+
+test('CLI version --format=json - outputs JSON', t => {
+  const { stdout, exitCode } = runCLI(['version', '--format=json'])
+
+  t.equal(exitCode, 0, 'exits with code 0')
+  let json
+  try {
+    json = JSON.parse(stdout)
+    t.pass('output is valid JSON')
+  } catch {
+    t.fail('output should be valid JSON')
+    t.end()
+    return
+  }
+
+  t.ok(json.success, 'JSON indicates success')
+  t.ok(json.version, 'JSON includes version')
+  t.ok(json.platform, 'JSON includes platform')
+
+  t.end()
+})
+
+test('CLI list --format=json - outputs JSON with interfaces', t => {
+  const { stdout, exitCode } = runCLI(['list', '--format=json'])
+
+  t.equal(exitCode, 0, 'exits with code 0')
+  let json
+  try {
+    json = JSON.parse(stdout)
+    t.pass('output is valid JSON')
+  } catch {
+    t.fail('output should be valid JSON')
+    t.end()
+    return
+  }
+
+  t.ok(json.success, 'JSON indicates success')
+  t.ok(Array.isArray(json.interfaces), 'JSON includes interfaces array')
+  t.ok(json.platform, 'JSON includes platform')
+
+  t.end()
+})
+
+test('CLI normalize --format=json - outputs JSON with normalized MAC', t => {
+  const { stdout, exitCode } = runCLI(['normalize', '00-11-22-33-44-55', '--format=json'])
+
+  t.equal(exitCode, 0, 'exits with code 0')
+  let json
+  try {
+    json = JSON.parse(stdout)
+    t.pass('output is valid JSON')
+  } catch {
+    t.fail('output should be valid JSON')
+    t.end()
+    return
+  }
+
+  t.ok(json.success, 'JSON indicates success')
+  t.equal(json.input, '00-11-22-33-44-55', 'JSON includes input MAC')
+  t.equal(json.normalized, '00:11:22:33:44:55', 'JSON includes normalized MAC')
+
+  t.end()
+})
+
+test('CLI --format=invalid - rejects unknown format', t => {
+  const { stderr, exitCode } = runCLI(['list', '--format=xml'])
+
+  t.notEqual(exitCode, 0, 'exits with non-zero code')
+  t.ok(stderr.includes('Unknown format') || stderr.includes('xml'), 'outputs format error')
+
+  t.end()
+})
+
+// =============================================================================
+// Verbose and Quiet Flag Tests
+// =============================================================================
+
+test('CLI --verbose and --quiet - mutually exclusive', t => {
+  const { stderr, exitCode } = runCLI(['--verbose', '--quiet', 'list'])
+
+  t.notEqual(exitCode, 0, 'exits with non-zero code')
+  t.ok(stderr.includes('Cannot use --verbose and --quiet together'), 'outputs mutual exclusion error')
+
+  t.end()
+})
+
+test('CLI --quiet - suppresses output', t => {
+  const { stdout: normalOut } = runCLI(['list'])
+  const { stdout: quietOut, exitCode } = runCLI(['list', '--quiet'])
+
+  t.equal(exitCode, 0, 'exits with code 0')
+  // Quiet mode should have less or equal output
+  t.ok(quietOut.length <= normalOut.length, 'quiet mode produces less output')
+
+  t.end()
+})
+
+// =============================================================================
+// Dry-run Flag Tests
+// =============================================================================
+
+test('CLI set --dry-run - shows what would happen', t => {
+  // Dry-run should work without root
+  const { stdout, exitCode } = runCLI(['set', '00:11:22:33:44:55', 'nonexistent', '--dry-run'])
+
+  // Should exit with code 2 (dry-run would fail)
+  t.equal(exitCode, 2, 'exits with code 2 for dry-run failure')
+  t.ok(
+    stdout.includes('DRY-RUN') || stdout.includes('Would fail'),
+    'indicates dry-run mode'
+  )
+
+  t.end()
+})
+
+test('CLI randomize --dry-run - shows what would happen', t => {
+  const { stdout, exitCode } = runCLI(['randomize', 'nonexistent', '--dry-run'])
+
+  // Should exit with code 2 (dry-run would fail)
+  t.equal(exitCode, 2, 'exits with code 2 for dry-run failure')
+  t.ok(
+    stdout.includes('DRY-RUN') || stdout.includes('Would fail'),
+    'indicates dry-run mode'
+  )
+
+  t.end()
+})
+
+test('CLI reset --dry-run - shows what would happen', t => {
+  const { stdout, exitCode } = runCLI(['reset', 'nonexistent', '--dry-run'])
+
+  // Should exit with code 2 (dry-run would fail)
+  t.equal(exitCode, 2, 'exits with code 2 for dry-run failure')
+  t.ok(
+    stdout.includes('DRY-RUN') || stdout.includes('Would fail'),
+    'indicates dry-run mode'
+  )
+
+  t.end()
+})
+
+test('CLI set --dry-run --format=json - outputs JSON dry-run result', t => {
+  const { stdout, exitCode } = runCLI(['set', '00:11:22:33:44:55', 'nonexistent', '--dry-run', '--format=json'])
+
+  t.equal(exitCode, 2, 'exits with code 2 for dry-run failure')
+  let json
+  try {
+    json = JSON.parse(stdout)
+    t.pass('output is valid JSON')
+  } catch {
+    t.fail('output should be valid JSON')
+    t.end()
+    return
+  }
+
+  t.ok(json.dryRun, 'JSON indicates dry-run mode')
+  t.ok(Array.isArray(json.operations), 'JSON includes operations array')
+
+  t.end()
+})
