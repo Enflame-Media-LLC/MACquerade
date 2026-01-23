@@ -1,10 +1,45 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
+import { exec, execFile } from 'child_process'
+import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
 import { quote } from 'shell-quote'
 import zeroFill from 'zero-fill'
 import { createRequire } from 'module'
-import type { NetworkInterface, RandomFunction } from './types.js'
+import type { NetworkInterface, RandomFunction, AsyncOptions } from './types.js'
+
+// Promisified exec functions for async operations
+const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+// Default timeout for async operations (30 seconds)
+const DEFAULT_TIMEOUT = 30000
+
+// Deprecation warning tracking (show once per function)
+const deprecationWarnings = new Set<string>()
+
+/**
+ * Show deprecation warning for sync functions (once per function name)
+ */
+function warnDeprecated(fnName: string): void {
+  if (!deprecationWarnings.has(fnName)) {
+    deprecationWarnings.add(fnName)
+    console.warn(
+      `[DEPRECATION WARNING] ${fnName}() is deprecated and will be removed in a future version. ` +
+      `Use the async version instead (e.g., ${fnName.replace('Sync', '')}()).`
+    )
+  }
+}
+
+/**
+ * Create exec options with timeout and abort signal support
+ */
+function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal } {
+  return {
+    timeout: options.timeout ?? DEFAULT_TIMEOUT,
+    signal: options.signal
+  }
+}
 
 // winreg is CommonJS-only, use createRequire for compatibility
 const require = createRequire(import.meta.url)
@@ -27,6 +62,7 @@ let preferIfconfig = false
 
 /**
  * Check if the `ip` command (iproute2) is available on the system.
+ * @deprecated Use hasIpCommandAsync() instead
  */
 function hasIpCommand(): boolean {
   try {
@@ -37,8 +73,25 @@ function hasIpCommand(): boolean {
   }
 }
 
+/**
+ * Check if the `ip` command (iproute2) is available on the system (async).
+ * Note: Uses 'which' command which is a safe, hardcoded string (no user input).
+ */
+async function hasIpCommandAsync(options: AsyncOptions = {}): Promise<boolean> {
+  try {
+    // Safe: hardcoded command, no user input
+    await execAsync('which ip', createExecOptions(options))
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Detect ip command availability at module load time (Linux only)
 const ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
+
+// Cache for async ip command check
+let ipCommandAvailableAsync: boolean | null = null
 
 /**
  * Set whether to prefer ifconfig over ip command on Linux.
@@ -719,15 +772,568 @@ function setRandomFunction(fn: RandomFunction | null): void {
   randomFn = fn === null ? defaultRandom : fn
 }
 
+// ============================================================================
+// ASYNC API (Primary - Use these for new code)
+// ============================================================================
+
+/**
+ * Get cached async ip command availability (or detect it if not cached).
+ */
+async function getIpCommandAvailableAsync(options: AsyncOptions = {}): Promise<boolean> {
+  if (ipCommandAvailableAsync === null) {
+    ipCommandAvailableAsync = await hasIpCommandAsync(options)
+  }
+  return ipCommandAvailableAsync
+}
+
+/**
+ * Returns the list of interfaces found on this machine (async version).
+ * @param targets - Optional list of interface names to filter
+ * @param options - Options including timeout and abort signal
+ */
+async function findInterfacesAsync(targets?: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  if (!targets) targets = []
+
+  targets = targets.map(target => target.toLowerCase())
+
+  if (process.platform === 'darwin') {
+    return findInterfacesDarwinAsync(targets, options)
+  } else if (process.platform === 'linux') {
+    return findInterfacesLinuxAsync(targets, options)
+  } else if (process.platform === 'win32') {
+    return findInterfacesWin32Async(targets, options)
+  }
+
+  return []
+}
+
+async function findInterfacesDarwinAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  // Safe: hardcoded command, no user input
+  const { stdout } = await execAsync('networksetup -listallhardwareports', createExecOptions(options))
+  let output = stdout
+
+  const details: string[] = []
+  while (true) {
+    const result = /(?:Hardware Port|Device|Ethernet Address): (.+)/.exec(output)
+    if (!result || !result[1]) {
+      break
+    }
+    details.push(result[1])
+    output = output.slice(result.index + result[1].length)
+  }
+
+  const interfaces: NetworkInterface[] = []
+
+  for (let i = 0; i < details.length; i += 3) {
+    const port = details[i]
+    const device = details[i + 1]
+    const rawAddress = details[i + 2]
+    const addressMatch = MAC_ADDRESS_RE.exec(rawAddress.toUpperCase())
+    const address = addressMatch ? normalize(addressMatch[0]) ?? null : null
+
+    const it: NetworkInterface = {
+      address,
+      currentAddress: await getInterfaceMACAsync(device, options),
+      device,
+      port
+    }
+
+    if (targets.length === 0) {
+      interfaces.push(it)
+      continue
+    }
+
+    for (let j = 0; j < targets.length; j++) {
+      const target = targets[j]
+      if (target === port.toLowerCase() || target === device.toLowerCase()) {
+        interfaces.push(it)
+        break
+      }
+    }
+  }
+
+  return interfaces
+}
+
+async function findInterfacesLinuxAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  const ipAvailable = await getIpCommandAvailableAsync(options)
+  if (!preferIfconfig && ipAvailable) {
+    return findInterfacesLinuxIpAsync(targets, options)
+  }
+  return findInterfacesLinuxIfconfigAsync(targets, options)
+}
+
+async function findInterfacesLinuxIpAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  // Safe: hardcoded command, no user input
+  const { stdout } = await execAsync('ip link show', createExecOptions(options))
+  const lines = stdout.split('\n')
+
+  const interfaces: NetworkInterface[] = []
+  let currentDevice: string | null = null
+  let currentFlags = ''
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    const deviceMatch = /^\d+:\s+(\S+?)[@:]/.exec(line)
+    if (deviceMatch) {
+      currentDevice = deviceMatch[1]
+      const flagsMatch = /<([^>]+)>/.exec(line)
+      currentFlags = flagsMatch ? flagsMatch[1] : ''
+      continue
+    }
+
+    const macMatch = /^\s+link\/ether\s+([0-9a-f:]+)/i.exec(line)
+    if (macMatch && currentDevice) {
+      const address = normalize(macMatch[1]) ?? null
+      const port = getLinuxPortType(currentDevice, currentFlags)
+
+      const it: NetworkInterface = {
+        address,
+        currentAddress: await getInterfaceMACLinuxAsync(currentDevice, options),
+        device: currentDevice,
+        port
+      }
+
+      if (targets.length === 0) {
+        interfaces.push(it)
+      } else {
+        for (const target of targets) {
+          if (target === port.toLowerCase() || target === currentDevice.toLowerCase()) {
+            interfaces.push(it)
+            break
+          }
+        }
+      }
+
+      currentDevice = null
+      currentFlags = ''
+    }
+  }
+
+  return interfaces
+}
+
+async function findInterfacesLinuxIfconfigAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  // Safe: hardcoded command, no user input
+  const { stdout } = await execAsync('ifconfig', createExecOptions(options))
+  let output = stdout
+
+  const details: string[] = []
+  while (true) {
+    const result = /(.*?)HWaddr(.*)/mi.exec(output)
+    if (!result || !result[1] || !result[2]) {
+      break
+    }
+    details.push(result[1], result[2])
+    output = output.slice(result.index + result[0].length)
+  }
+
+  const interfaces: NetworkInterface[] = []
+
+  for (let i = 0; i < details.length; i += 2) {
+    const s = details[i].split(':')
+
+    let device = ''
+    let port = ''
+    if (s.length >= 2) {
+      device = s[0].split(' ')[0]
+      port = s[1].trim()
+    }
+
+    let address: string | null = details[i + 1].trim()
+    if (address) {
+      address = normalize(address) ?? null
+    }
+
+    const it: NetworkInterface = {
+      address,
+      currentAddress: await getInterfaceMACAsync(device, options),
+      device,
+      port
+    }
+
+    if (targets.length === 0) {
+      interfaces.push(it)
+      continue
+    }
+
+    for (let j = 0; j < targets.length; j++) {
+      const target = targets[j]
+      if (target === port.toLowerCase() || target === device.toLowerCase()) {
+        interfaces.push(it)
+        break
+      }
+    }
+  }
+
+  return interfaces
+}
+
+async function findInterfacesWin32Async(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
+  // Safe: hardcoded command, no user input
+  const { stdout } = await execAsync('ipconfig /all', createExecOptions(options))
+
+  const interfaces: NetworkInterface[] = []
+  const lines = stdout.split('\n')
+  let it: NetworkInterface | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    let result: RegExpExecArray | null
+    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
+      if (it !== null) {
+        if (targets.length === 0) {
+          interfaces.push(it)
+        } else {
+          for (let j = 0; j < targets.length; j++) {
+            const target = targets[j]
+            if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
+              interfaces.push(it)
+              break
+            }
+          }
+        }
+      }
+
+      it = {
+        port: '',
+        device: '',
+        address: null,
+        currentAddress: null
+      }
+
+      result = /adapter (.+?):/.exec(lines[i])
+      if (!result) {
+        continue
+      }
+
+      it.device = result[1]
+    }
+
+    if (!it) {
+      continue
+    }
+
+    result = /Physical Address.+?:(.*)/mi.exec(lines[i])
+    if (result) {
+      it.address = normalize(result[1].trim()) ?? null
+      it.currentAddress = await getInterfaceMACWin32Async(it.device, options) || it.address
+      continue
+    }
+
+    result = /description.+?:(.*)/mi.exec(lines[i])
+    if (result) {
+      it.description = result[1].trim()
+      continue
+    }
+  }
+  return interfaces
+}
+
+/**
+ * Returns the first interface which matches `target` (async version).
+ */
+async function findInterfaceAsync(target: string, options: AsyncOptions = {}): Promise<NetworkInterface | undefined> {
+  const interfaces = await findInterfacesAsync([target], options)
+  return interfaces && interfaces[0]
+}
+
+/**
+ * Get current MAC address using `ip link show` for a specific device (async version).
+ */
+async function getInterfaceMACLinuxAsync(device: string, options: AsyncOptions = {}): Promise<string | null> {
+  const ipAvailable = await getIpCommandAvailableAsync(options)
+  if (ipAvailable && !preferIfconfig) {
+    try {
+      // Safe: execFile with arguments array prevents injection
+      const { stdout } = await execFileAsync('ip', ['link', 'show', device], createExecOptions(options))
+      const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(stdout)
+      return macMatch ? normalize(macMatch[1]) ?? null : null
+    } catch {
+      // Fall through to ifconfig
+    }
+  }
+  try {
+    const { stdout } = await execFileAsync('ifconfig', [device], createExecOptions(options))
+    const address = MAC_ADDRESS_RE.exec(stdout)
+    return address ? normalize(address[0]) ?? null : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get current MAC address using `getmac /v /fo csv` for a specific Windows device (async version).
+ */
+async function getInterfaceMACWin32Async(device: string, options: AsyncOptions = {}): Promise<string | null> {
+  try {
+    // Safe: hardcoded command, no user input
+    const { stdout } = await execAsync('getmac /v /fo csv', createExecOptions(options))
+    const lines = stdout.trim().split('\n')
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      const fields = parseCSVLine(line)
+      if (fields.length >= 3) {
+        const connectionName = fields[0]
+        const physicalAddress = fields[2]
+
+        if (connectionName.toLowerCase() === device.toLowerCase()) {
+          return normalize(physicalAddress) ?? null
+        }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Returns currently-set MAC address of given interface (async version).
+ */
+async function getInterfaceMACAsync(device: string, options: AsyncOptions = {}): Promise<string | null> {
+  if (process.platform === 'darwin' || process.platform === 'linux') {
+    try {
+      // Safe: execFile with arguments array prevents injection
+      const { stdout } = await execFileAsync('ifconfig', [device], createExecOptions(options))
+      const address = MAC_ADDRESS_RE.exec(stdout)
+      return address ? normalize(address[0]) ?? null : null
+    } catch {
+      return null
+    }
+  } else if (process.platform === 'win32') {
+    return getInterfaceMACWin32Async(device, options)
+  }
+  return null
+}
+
+/**
+ * Sets the MAC address for given `device` to `mac` (async version).
+ *
+ * Device varies by platform:
+ *   OS X, Linux: this is the interface name in ifconfig
+ *   Windows: this is the network adapter name in ipconfig
+ */
+async function setInterfaceMACAsync(device: string, mac: string, port?: string, options: AsyncOptions = {}): Promise<void> {
+  if (!MAC_ADDRESS_RE.exec(mac)) {
+    throw new Error(mac + ' is not a valid MAC address')
+  }
+
+  const isWirelessPort = port && port.toLowerCase() === 'wi-fi'
+  const execOpts = createExecOptions(options)
+
+  if (process.platform === 'darwin') {
+    if (isWirelessPort) {
+      try {
+        // Safe: execFile with arguments array prevents injection
+        await execFileAsync('networksetup', ['-setairportpower', device, 'off'], execOpts)
+        await execFileAsync('networksetup', ['-setairportpower', device, 'on'], execOpts)
+      } catch (err) {
+        throw new Error('Unable to power cycle wifi device', { cause: err })
+      }
+    }
+
+    try {
+      await execFileAsync('ifconfig', [device, 'ether', mac], execOpts)
+    } catch (err) {
+      throw new Error('Unable to change MAC address', { cause: err })
+    }
+
+    if (isWirelessPort) {
+      try {
+        await execFileAsync('networksetup', ['-setairportpower', device, 'off'], execOpts)
+        await execFileAsync('networksetup', ['-setairportpower', device, 'on'], execOpts)
+      } catch (err) {
+        throw new Error('Unable to restart wifi device', { cause: err })
+      }
+    }
+  } else if (process.platform === 'linux') {
+    const ipAvailable = await getIpCommandAvailableAsync(options)
+    if (!preferIfconfig && ipAvailable) {
+      try {
+        await execFileAsync('ip', ['link', 'set', 'dev', device, 'down'], execOpts)
+        await execFileAsync('ip', ['link', 'set', 'dev', device, 'address', mac], execOpts)
+        await execFileAsync('ip', ['link', 'set', 'dev', device, 'up'], execOpts)
+      } catch (err) {
+        throw new Error('Unable to change MAC address', { cause: err })
+      }
+    } else {
+      try {
+        await execFileAsync('ifconfig', [device, 'down', 'hw', 'ether', mac], execOpts)
+        await execFileAsync('ifconfig', [device, 'up'], execOpts)
+      } catch (err) {
+        throw new Error('Unable to change MAC address', { cause: err })
+      }
+    }
+  } else if (process.platform === 'win32') {
+    await setInterfaceMACWin32Async(device, mac, options)
+  }
+}
+
+/**
+ * Promisified Windows registry key enumeration.
+ */
+function getRegistryKeysAsync(regKey: Winreg.Registry): Promise<Winreg.Registry[]> {
+  return new Promise((resolve, reject) => {
+    regKey.keys((err: Error | null, keys: Winreg.Registry[]) => {
+      if (err) reject(err)
+      else resolve(keys)
+    })
+  })
+}
+
+/**
+ * Promisified Windows registry values retrieval.
+ */
+function getRegistryValuesAsync(regKey: Winreg.Registry): Promise<Winreg.RegistryItem[]> {
+  return new Promise((resolve, reject) => {
+    regKey.values((err: Error | null, values: Winreg.RegistryItem[]) => {
+      if (err) reject(err)
+      else resolve(values)
+    })
+  })
+}
+
+/**
+ * Promisified Windows registry value set.
+ */
+function setRegistryValueAsync(regKey: Winreg.Registry, name: string, type: string, value: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    regKey.set(name, type, value, (err: Error | null) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
+}
+
+/**
+ * Async version of setInterfaceMAC for Windows.
+ */
+async function setInterfaceMACWin32Async(device: string, mac: string, options: AsyncOptions = {}): Promise<void> {
+  const regKey = new Winreg({
+    hive: Winreg.HKLM,
+    key: WIN_REGISTRY_PATH
+  })
+
+  const keys = await getRegistryKeysAsync(regKey)
+
+  for (const key of keys) {
+    const found = await tryWindowsKeyAsync(key.key, device, mac, options)
+    if (found) break
+  }
+}
+
+/**
+ * Async version of tryWindowsKey.
+ */
+async function tryWindowsKeyAsync(key: string, device: string, mac: string, options: AsyncOptions = {}): Promise<boolean> {
+  if (key.indexOf('Properties') > -1) {
+    return false
+  }
+
+  const networkAdapterKeyPath = new Winreg({
+    hive: Winreg.HKLM,
+    key
+  })
+
+  mac = mac.replace(/:/g, '')
+
+  try {
+    const values = await getRegistryValuesAsync(networkAdapterKeyPath)
+    let gotAdapter = false
+
+    for (let x = 0; x < values.length; x++) {
+      if (values[x].name === 'AdapterModel') {
+        gotAdapter = true
+        break
+      }
+    }
+
+    if (gotAdapter) {
+      await setRegistryValueAsync(networkAdapterKeyPath, 'NetworkAddress', 'REG_SZ', mac)
+      const execOpts = createExecOptions(options)
+      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'disable'], execOpts)
+      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'enable'], execOpts)
+      return true
+    }
+  } catch (err) {
+    throw new Error('Unable to restart device, is the cmd running as admin?', { cause: err })
+  }
+
+  return false
+}
+
+// ============================================================================
+// SYNC API (Deprecated - Maintained for backward compatibility)
+// ============================================================================
+
+/**
+ * Returns the list of interfaces found on this machine (sync version).
+ * @deprecated Use findInterfacesAsync() instead
+ */
+function findInterfacesSync(targets?: string[]): NetworkInterface[] {
+  warnDeprecated('findInterfacesSync')
+  return findInterfaces(targets)
+}
+
+/**
+ * Returns the first interface which matches `target` (sync version).
+ * @deprecated Use findInterfaceAsync() instead
+ */
+function findInterfaceSync(target: string): NetworkInterface | undefined {
+  warnDeprecated('findInterfaceSync')
+  return findInterface(target)
+}
+
+/**
+ * Sets the MAC address for given `device` to `mac` (sync version).
+ * @deprecated Use setInterfaceMACAsync() instead
+ */
+function setInterfaceMACSync(device: string, mac: string, port?: string): void {
+  warnDeprecated('setInterfaceMACSync')
+  setInterfaceMAC(device, mac, port)
+}
+
 export {
+  // Primary async API
+  findInterfacesAsync,
+  findInterfaceAsync,
+  setInterfaceMACAsync,
+  getInterfaceMACAsync,
+
+  // Sync API (maintained for backward compatibility but deprecated)
   findInterface,
   findInterfaces,
+  findInterfaceSync,
+  findInterfacesSync,
+  setInterfaceMAC,
+  setInterfaceMACSync,
+
+  // Utility functions (sync-only, no I/O)
   normalize,
   parseCSVLine,
   randomize,
-  setInterfaceMAC,
   setPreferIfconfig,
-  setRandomFunction
+  setRandomFunction,
+
+  // Constants
+  DEFAULT_TIMEOUT
 }
 
-export type { NetworkInterface, RandomFunction } from './types.js'
+// Re-export OUI module functions
+export {
+  lookup,
+  searchVendors,
+  randomizeAsVendor,
+  randomizeAsVendorWithInfo,
+  getVendorNames,
+  getPrefixesForVendor,
+  getDatabaseStats
+} from './oui.js'
+
+export type { VendorInfo } from './oui.js'
+
+export type { NetworkInterface, RandomFunction, AsyncOptions } from './types.js'

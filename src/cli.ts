@@ -3,6 +3,7 @@
 import chalk from 'chalk'
 import minimist from 'minimist'
 import * as spoof from './index.js'
+import * as oui from './oui.js'
 import { stripIndent } from 'common-tags'
 import { createRequire } from 'module'
 import type { NetworkInterface } from './types.js'
@@ -22,6 +23,8 @@ interface ParsedArgs {
   format?: string
   wifi?: boolean
   local?: boolean
+  vendor?: string
+  timeout?: number
 }
 
 interface OperationResult {
@@ -50,13 +53,17 @@ const argv = minimist<ParsedArgs>(process.argv.slice(2), {
     'verbose',
     'quiet'
   ],
-  string: ['format']
+  string: ['format', 'vendor'],
+  default: {
+    timeout: spoof.DEFAULT_TIMEOUT
+  }
 })
 const cmd = argv._[0]
 const isJson = argv.format === 'json'
 const isDryRun = argv['dry-run']
 const isVerbose = argv.verbose && !argv.quiet
 const isQuiet = argv.quiet
+const timeout = argv.timeout
 
 // Validate mutually exclusive flags
 if (argv.verbose && argv.quiet) {
@@ -77,12 +84,15 @@ if (argv['prefer-ifconfig']) {
   spoof.setPreferIfconfig(true)
 }
 
-try {
-  init()
-} catch (err) {
-  outputError(err as ErrorWithCode)
-  process.exitCode = 1
-}
+// Main entry point - use async IIFE
+;(async () => {
+  try {
+    await init()
+  } catch (err) {
+    outputError(err as ErrorWithCode)
+    process.exitCode = 1
+  }
+})()
 
 /**
  * Output a message respecting --quiet and --format flags
@@ -132,24 +142,30 @@ function outputJson(data: Record<string, unknown>): void {
   console.log(JSON.stringify(response, null, 2))
 }
 
-function init(): void {
+async function init(): Promise<void> {
   if (cmd === 'version' || argv.version) {
     version()
   } else if (cmd === 'list' || cmd === 'ls') {
-    list()
+    await list()
   } else if (cmd === 'set') {
     const mac = argv._[1]
     const devices = argv._.slice(2)
-    set(mac, devices)
+    await set(mac, devices)
   } else if (cmd === 'randomize') {
     const devices = argv._.slice(1)
-    randomize(devices)
+    await randomize(devices)
   } else if (cmd === 'reset') {
     const devices = argv._.slice(1)
-    reset(devices)
+    await reset(devices)
   } else if (cmd === 'normalize') {
     const mac = argv._[1]
     normalizeCmd(mac)
+  } else if (cmd === 'lookup') {
+    const mac = argv._[1]
+    lookupCmd(mac)
+  } else if (cmd === 'vendors') {
+    const query = argv._.slice(1).join(' ')
+    vendorsCmd(query)
   } else {
     help()
   }
@@ -163,22 +179,32 @@ function help(): void {
       spoof randomize en0
 
     Usage:
-      spoof list [--wifi]                     List available devices.
-      spoof set <mac> <devices>...            Set device MAC address.
-      spoof randomize [--local] <devices>...  Set device MAC address randomly.
-      spoof reset <devices>...                Reset device MAC address to default.
-      spoof normalize <mac>                   Given a MAC address, normalize it.
-      spoof help                              Shows this help message.
-      spoof version                           Show package version.
+      spoof list [--wifi]                            List available devices.
+      spoof set <mac> <devices>...                   Set device MAC address.
+      spoof randomize [--local] [--vendor=<name>] <devices>...
+                                                     Set device MAC address randomly.
+      spoof reset <devices>...                       Reset device MAC address to default.
+      spoof normalize <mac>                          Given a MAC address, normalize it.
+      spoof lookup <mac>                             Look up vendor for a MAC address.
+      spoof vendors [<query>]                        Search OUI vendor database.
+      spoof help                                     Shows this help message.
+      spoof version                                  Show package version.
 
     Options:
       --wifi              Try to only show wireless interfaces.
       --local             Set the locally administered flag on randomized MACs.
+      --vendor=<name>     Use a specific vendor's OUI prefix when randomizing.
       --prefer-ifconfig   On Linux, use ifconfig instead of ip command.
       --format=json       Output in JSON format (for scripting/automation).
       --dry-run, -n       Show what would happen without making changes.
       --verbose, -v       Show detailed diagnostic information.
       --quiet, -q         Suppress non-essential output.
+      --timeout=<ms>      Timeout for operations in milliseconds (default: 30000).
+
+    Examples:
+      spoof lookup 00:03:93:12:34:56       # Look up Apple device
+      spoof vendors apple                   # Search for Apple OUIs
+      spoof randomize en0 --vendor=samsung  # Randomize as Samsung device
 
     Exit codes:
       0  Success
@@ -197,14 +223,14 @@ function version(): void {
   }
 }
 
-function set(mac: string, devices: string[]): void {
+async function set(mac: string, devices: string[]): Promise<void> {
   verbose(`Setting MAC address to ${mac} for devices: ${devices.join(', ')}`)
 
   const results: OperationResult[] = []
 
-  devices.forEach(device => {
+  for (const device of devices) {
     verbose(`Looking up device: ${device}`)
-    const it = spoof.findInterface(device)
+    const it = await spoof.findInterfaceAsync(device, { timeout })
 
     if (!it) {
       if (isDryRun) {
@@ -213,7 +239,7 @@ function set(mac: string, devices: string[]): void {
           console.log(chalk.yellow(`[DRY-RUN] Would fail: Could not find device for ${device}`))
         }
         process.exitCode = 2
-        return
+        continue
       }
       throw new Error('Could not find device for ' + device)
     }
@@ -232,13 +258,13 @@ function set(mac: string, devices: string[]): void {
       if (!isJson && !isQuiet) {
         console.log(chalk.cyan(`[DRY-RUN] Would set ${it.device} (${it.port}) MAC to ${mac}`))
       }
-      return
+      continue
     }
 
-    setMACAddress(it.device, mac, it.port)
+    await setMACAddress(it.device, mac, it.port)
     results.push({ device: it.device, port: it.port, newAddress: mac, success: true })
     output(`Set ${it.device} (${it.port}) MAC to ${mac}`)
-  })
+  }
 
   if (isJson && isDryRun) {
     outputJson({ dryRun: true, operations: results })
@@ -257,17 +283,20 @@ function normalizeCmd(mac: string): void {
   }
 }
 
-function randomize(devices: string[]): void {
+async function randomize(devices: string[]): Promise<void> {
   verbose(`Randomizing MAC address for devices: ${devices.join(', ')}`)
   if (argv.local) {
     verbose('Using locally administered address flag')
   }
+  if (argv.vendor) {
+    verbose(`Using vendor prefix for: ${argv.vendor}`)
+  }
 
   const results: OperationResult[] = []
 
-  devices.forEach(device => {
+  for (const device of devices) {
     verbose(`Looking up device: ${device}`)
-    const it = spoof.findInterface(device)
+    const it = await spoof.findInterfaceAsync(device, { timeout })
 
     if (!it) {
       if (isDryRun) {
@@ -276,33 +305,59 @@ function randomize(devices: string[]): void {
           console.log(chalk.yellow(`[DRY-RUN] Would fail: Could not find device for ${device}`))
         }
         process.exitCode = 2
-        return
+        continue
       }
       throw new Error('Could not find device for ' + device)
     }
 
-    const mac = spoof.randomize(argv.local)
-    verbose(`Generated random MAC: ${mac} for ${it.device}`)
+    let mac: string
+    let vendorInfo: { vendor: string; prefix: string } | undefined
+
+    if (argv.vendor) {
+      // Use vendor-specific randomization
+      const result = oui.randomizeAsVendorWithInfo(argv.vendor, argv.local)
+      mac = result.mac
+      vendorInfo = { vendor: result.vendor, prefix: result.prefix }
+      verbose(`Generated vendor MAC: ${mac} (${vendorInfo.vendor}) for ${it.device}`)
+    } else {
+      // Use default VM vendor randomization
+      mac = spoof.randomize(argv.local)
+      verbose(`Generated random MAC: ${mac} for ${it.device}`)
+    }
 
     if (isDryRun) {
-      const result: OperationResult = {
+      const result: OperationResult & { vendor?: string } = {
         device: it.device,
         port: it.port,
         currentAddress: it.currentAddress,
         newAddress: mac,
         success: true
       }
+      if (vendorInfo) {
+        result.vendor = vendorInfo.vendor
+      }
       results.push(result)
       if (!isJson && !isQuiet) {
-        console.log(chalk.cyan(`[DRY-RUN] Would set ${it.device} (${it.port}) MAC to ${mac}`))
+        const vendorMsg = vendorInfo ? ` (${vendorInfo.vendor})` : ''
+        console.log(chalk.cyan(`[DRY-RUN] Would set ${it.device} (${it.port}) MAC to ${mac}${vendorMsg}`))
       }
-      return
+      continue
     }
 
-    setMACAddress(it.device, mac, it.port)
-    results.push({ device: it.device, port: it.port, newAddress: mac, success: true })
-    output(`Set ${it.device} (${it.port}) MAC to ${mac}`)
-  })
+    await setMACAddress(it.device, mac, it.port)
+    const opResult: OperationResult & { vendor?: string } = {
+      device: it.device,
+      port: it.port,
+      newAddress: mac,
+      success: true
+    }
+    if (vendorInfo) {
+      opResult.vendor = vendorInfo.vendor
+    }
+    results.push(opResult)
+    const vendorMsg = vendorInfo ? ` (${vendorInfo.vendor})` : ''
+    output(`Set ${it.device} (${it.port}) MAC to ${mac}${vendorMsg}`)
+  }
 
   if (isJson && isDryRun) {
     outputJson({ dryRun: true, operations: results })
@@ -311,14 +366,14 @@ function randomize(devices: string[]): void {
   }
 }
 
-function reset(devices: string[]): void {
+async function reset(devices: string[]): Promise<void> {
   verbose(`Resetting MAC address to hardware default for devices: ${devices.join(', ')}`)
 
   const results: OperationResult[] = []
 
-  devices.forEach(device => {
+  for (const device of devices) {
     verbose(`Looking up device: ${device}`)
-    const it = spoof.findInterface(device)
+    const it = await spoof.findInterfaceAsync(device, { timeout })
 
     if (!it) {
       if (isDryRun) {
@@ -327,7 +382,7 @@ function reset(devices: string[]): void {
           console.log(chalk.yellow(`[DRY-RUN] Would fail: Could not find device for ${device}`))
         }
         process.exitCode = 2
-        return
+        continue
       }
       throw new Error('Could not find device for ' + device)
     }
@@ -339,7 +394,7 @@ function reset(devices: string[]): void {
           console.log(chalk.yellow(`[DRY-RUN] Would fail: Could not read hardware MAC address for ${device}`))
         }
         process.exitCode = 2
-        return
+        continue
       }
       throw new Error('Could not read hardware MAC address for ' + device)
     }
@@ -358,13 +413,13 @@ function reset(devices: string[]): void {
       if (!isJson && !isQuiet) {
         console.log(chalk.cyan(`[DRY-RUN] Would reset ${it.device} (${it.port}) MAC to ${it.address}`))
       }
-      return
+      continue
     }
 
-    setMACAddress(it.device, it.address, it.port)
+    await setMACAddress(it.device, it.address, it.port)
     results.push({ device: it.device, port: it.port, newAddress: it.address, success: true })
     output(`Reset ${it.device} (${it.port}) MAC to ${it.address}`)
-  })
+  }
 
   if (isJson && isDryRun) {
     outputJson({ dryRun: true, operations: results })
@@ -373,7 +428,7 @@ function reset(devices: string[]): void {
   }
 }
 
-function list(): void {
+async function list(): Promise<void> {
   verbose('Listing network interfaces')
 
   const targets: string[] = []
@@ -382,7 +437,7 @@ function list(): void {
     targets.push('wi-fi')
   }
 
-  const interfaces = spoof.findInterfaces(targets)
+  const interfaces = await spoof.findInterfacesAsync(targets, { timeout })
   verbose(`Found ${interfaces.length} interface(s)`)
 
   if (isJson) {
@@ -410,14 +465,94 @@ function list(): void {
   })
 }
 
-function setMACAddress(device: string, mac: string, port: string): void {
+async function setMACAddress(device: string, mac: string, port: string): Promise<void> {
   verbose(`Checking permissions for MAC address change on ${device}`)
 
   if (process.platform !== 'win32' && process.getuid && process.getuid() !== 0) {
     throw new Error('Must run as root (or using sudo) to change network settings')
   }
 
-  verbose(`Executing setInterfaceMAC(${device}, ${mac}, ${port})`)
-  spoof.setInterfaceMAC(device, mac, port)
+  verbose(`Executing setInterfaceMACAsync(${device}, ${mac}, ${port})`)
+  await spoof.setInterfaceMACAsync(device, mac, port, { timeout })
   verbose(`Successfully changed MAC address on ${device}`)
+}
+
+/**
+ * Look up vendor for a MAC address
+ */
+function lookupCmd(mac: string): void {
+  if (!mac) {
+    throw new Error('Please provide a MAC address to look up')
+  }
+
+  verbose(`Looking up vendor for MAC: ${mac}`)
+  const result = oui.lookup(mac)
+
+  if (isJson) {
+    if (result) {
+      outputJson({
+        input: mac,
+        vendor: result.vendor,
+        prefix: result.prefix
+      })
+    } else {
+      outputJson({
+        input: mac,
+        vendor: null,
+        prefix: null,
+        message: 'Vendor not found in database'
+      })
+    }
+    return
+  }
+
+  if (result) {
+    console.log(result.vendor)
+  } else {
+    console.log(chalk.yellow('Vendor not found in database'))
+  }
+}
+
+/**
+ * Search OUI vendor database
+ */
+function vendorsCmd(query: string): void {
+  verbose(`Searching vendors for: ${query || '(showing stats)'}`)
+
+  // If no query, show database stats
+  if (!query) {
+    const stats = oui.getDatabaseStats()
+    if (isJson) {
+      outputJson({
+        totalPrefixes: stats.totalPrefixes,
+        uniqueVendors: stats.uniqueVendors
+      })
+    } else {
+      console.log(`OUI Database: ${stats.totalPrefixes} prefixes from ${stats.uniqueVendors} vendors`)
+      console.log(chalk.dim('Usage: spoof vendors <query>'))
+    }
+    return
+  }
+
+  const results = oui.searchVendors(query, 50)
+  verbose(`Found ${results.length} matching vendors`)
+
+  if (isJson) {
+    outputJson({
+      query,
+      count: results.length,
+      vendors: results
+    })
+    return
+  }
+
+  if (results.length === 0) {
+    console.log(chalk.yellow(`No vendors found matching: ${query}`))
+    return
+  }
+
+  console.log(chalk.dim(`Found ${results.length} vendor(s) matching "${query}":\n`))
+  for (const { prefix, vendor } of results) {
+    console.log(`${chalk.cyan(prefix)} - ${vendor}`)
+  }
 }

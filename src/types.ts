@@ -27,3 +27,13 @@ export type Platform = 'darwin' | 'linux' | 'win32'
  * Function signature for random number generator
  */
 export type RandomFunction = (min: number, max: number) => number
+
+/**
+ * Options for async operations
+ */
+export interface AsyncOptions {
+  /** Timeout in milliseconds (default: 30000) */
+  timeout?: number
+  /** AbortSignal for cancellation */
+  signal?: AbortSignal
+}
