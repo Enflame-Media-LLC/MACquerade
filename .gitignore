@@ -11,6 +11,10 @@ build/
 # Test coverage
 coverage/
 
+# Mutation testing reports
+reports/
+.stryker-tmp/
+
 # IDE
 .idea/
 .vscode/

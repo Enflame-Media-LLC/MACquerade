@@ -20,6 +20,8 @@
     "zero-fill": "^2.2.4"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.4.0",
+    "@stryker-mutator/vitest-runner": "^9.4.0",
     "@types/common-tags": "^1.8.4",
     "@types/minimist": "^1.2.5",
     "@types/node": "^25.0.10",
@@ -82,7 +84,9 @@
     "postversion": "git push && git push --tags",
     "clean": "rm -rf node_modules dist .yarn/cache .yarn/install-state.gz",
     "reinstall": "yarn clean && yarn install",
-    "update-oui": "npx tsx scripts/update-oui.ts"
+    "update-oui": "npx tsx scripts/update-oui.ts",
+    "mutation": "npx stryker run",
+    "stryker": "npx stryker run"
   },
   "funding": [
     {

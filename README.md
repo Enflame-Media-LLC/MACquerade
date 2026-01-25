@@ -175,6 +175,49 @@ macOS, consider using the Python version of this program,
 [SpoofMAC](https://github.com/feross/SpoofMAC), and following the instructions
 for [running automatically on startup](https://github.com/feross/spoofmac#optional-run-automatically-at-startup).
 
+## Development
+
+### Testing
+
+Run all tests with linting:
+
+```bash
+yarn test
+```
+
+Run tests with coverage:
+
+```bash
+yarn coverage
+```
+
+### Mutation Testing
+
+This project uses [Stryker Mutator](https://stryker-mutator.io/) to verify test effectiveness. Mutation testing introduces small changes (mutations) to your code and checks if tests catch them.
+
+```bash
+yarn mutation
+```
+
+Results are saved to `reports/mutation/mutation.html`.
+
+**Baseline Mutation Score (January 2026):**
+
+| File | Score | Covered |
+|------|-------|---------|
+| index.ts | 37.41% | 78.46% |
+| oui.ts | 0% | 0% |
+| cli.ts | 0% | N/A (excluded) |
+| **Total** | **24.08%** | **74.03%** |
+
+Note: CLI is excluded from mutation testing as it's tested via integration tests. The "covered" percentage measures mutation score for only the code that has test coverage.
+
+**Interpreting Results:**
+- **Killed**: Test caught the mutation (good)
+- **Survived**: Test didn't catch the mutation (test gap)
+- **No Coverage**: Code not covered by tests
+- **Timeout**: Mutation caused infinite loop (counted as killed)
+
 ## License
 
 MIT. Copyright [Feross Aboukhadijeh](https://feross.org).
