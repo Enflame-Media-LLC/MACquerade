@@ -3,7 +3,7 @@
  * No mocking required - tests run against actual library exports.
  */
 import { describe, it, expect } from 'vitest'
-import * as spoof from '../dist/index.js'
+import * as spoof from '../src/index.ts'
 import { randomInt } from 'node:crypto'
 
 describe('spoof.normalize()', () => {

@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e
 
-# Re-attach stdin to the terminal so interactive prompts work when piped via curl
-if [ ! -t 0 ]; then
-  exec < /dev/tty
-fi
-
 INTERFACE="${1:-en0}"
 
 echo "=== Spoof MAC Randomizer for macOS ==="
@@ -123,7 +118,7 @@ echo "WARNING: Changing your MAC address on $INTERFACE will temporarily"
 echo "disconnect your Wi-Fi. You will need to reconnect afterward."
 echo ""
 printf "Continue? [y/N] "
-read -r confirm
+read -r confirm < /dev/tty
 if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
   echo "Aborted."
   exit 0

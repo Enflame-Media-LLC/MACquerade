@@ -10,8 +10,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
+  const mockExecFileSync = (cmd: string, args?: string[]) => {
+    const fullCmd = args ? [cmd, ...args].join(' ') : cmd
+    return mockExecSync(fullCmd)
+  }
   const mock = {
     execSync: mockExecSync,
+    execFileSync: mockExecFileSync,
     exec: vi.fn(),
     execFile: vi.fn(),
     spawn: vi.fn(),
@@ -37,7 +42,7 @@ describe('setInterfaceMAC error handling', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     // Test various invalid MAC formats that the regex strictly rejects
     const invalidMACs = [
@@ -69,13 +74,12 @@ describe('setInterfaceMAC error handling', () => {
     Object.defineProperty(process, 'platform', { value: 'darwin', writable: true })
 
     try {
-      const spoof = await import('../dist/index.js')
+      const spoof = await import('../src/index.ts')
 
-      // Valid MAC formats that should be accepted by MAC_ADDRESS_RE
+      // Valid MAC formats that should be accepted by MAC_VALIDATION_RE
       const validMACs = [
         '00:11:22:33:44:55',     // Colons
         '00-11-22-33-44-55',     // Dashes
-        '001122334455',           // No separators
       ]
 
       for (const mac of validMACs) {
@@ -126,14 +130,14 @@ describe('setInterfaceMAC darwin', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')
 
     // Should call ifconfig with ether option
     const ifconfigCmd = commandsCalled.find(c => c.includes('ifconfig') && c.includes('ether'))
     expect(ifconfigCmd).toBeDefined()
     expect(ifconfigCmd).toContain('en0')
-    // MAC is shell-quoted, so check for the individual parts
+    // Check for the individual parts of the MAC address
     expect(ifconfigCmd).toContain('00')
     expect(ifconfigCmd).toContain('11')
     expect(ifconfigCmd).toContain('22')
@@ -150,7 +154,7 @@ describe('setInterfaceMAC darwin', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     spoof.setInterfaceMAC('en1', '00:11:22:33:44:55', 'Wi-Fi')
 
     // Should call networksetup to power cycle wifi
@@ -178,7 +182,7 @@ describe('setInterfaceMAC darwin', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     expect(() => spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')).toThrow('Unable to change MAC address')
   })
@@ -216,7 +220,7 @@ describe('setInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     spoof.setInterfaceMAC('eth0', '00:11:22:33:44:55')
 
     // Should use ip command sequence: down, address, up
@@ -253,7 +257,7 @@ describe('setInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     expect(() => spoof.setInterfaceMAC('eth0', '00:11:22:33:44:55')).toThrow('Unable to change MAC address')
   })
@@ -272,7 +276,7 @@ describe('setInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     spoof.setInterfaceMAC('eth0', '00:11:22:33:44:55')
 
     // Should use ifconfig command
@@ -299,7 +303,7 @@ describe('setInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     // Enable preferIfconfig
     spoof.setPreferIfconfig(true)
@@ -358,7 +362,7 @@ Ethernet Address: AA:BB:CC:DD:EE:FF`)
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const interfaces = spoof.findInterfaces()
     const en0 = interfaces.find(i => i.device === 'en0')
@@ -402,7 +406,7 @@ describe('getInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const interfaces = spoof.findInterfaces()
     const eth0 = interfaces.find(i => i.device === 'eth0')
@@ -433,20 +437,13 @@ describe('getInterfaceMAC linux', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const interfaces = spoof.findInterfaces()
     const eth0 = interfaces.find(i => i.device === 'eth0')
 
     expect(eth0).toBeDefined()
     expect(eth0?.currentAddress).toBe('00:11:22:33:44:55')
-  })
-})
-
-describe('getInterfaceMAC windows', () => {
-  it('is tested via findInterfaces.test.ts', () => {
-    // Windows MAC retrieval tested via findInterfaces tests
-    expect(true).toBe(true)
   })
 })
 
@@ -481,7 +478,7 @@ Ethernet Address: AA:BB:CC:DD:EE:FF`)
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const interfaces = spoof.findInterfaces()
     const en0 = interfaces.find(i => i.device === 'en0')

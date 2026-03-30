@@ -12,7 +12,7 @@ import {
   getPrefixesForVendor,
   getDatabaseStats,
   setRandomFunction
-} from '../dist/index.js'
+} from '../src/index.ts'
 
 describe('lookup()', () => {
   describe('valid MAC formats', () => {

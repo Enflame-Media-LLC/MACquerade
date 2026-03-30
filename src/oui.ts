@@ -5,7 +5,6 @@
 
 import { createRequire } from 'node:module'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
-import zeroFill from 'zero-fill'
 
 const require = createRequire(import.meta.url)
 
@@ -230,40 +229,7 @@ export function getDatabaseStats(): { totalPrefixes: number; uniqueVendors: numb
  * @throws Error if no vendor matches the query
  */
 export function randomizeAsVendor(vendorQuery: string, localAdmin: boolean = false): string {
-  const matches = searchVendors(vendorQuery, 100)
-
-  if (matches.length === 0) {
-    throw new Error(`No vendor found matching: ${vendorQuery}`)
-  }
-
-  // Pick a random matching vendor
-  const randomIndex = cryptoRandomInt(0, matches.length)
-  const { prefix } = matches[randomIndex]
-
-  // Parse the prefix bytes
-  const prefixBytes = prefix.split(':').map(b => parseInt(b, 16))
-
-  // Generate random suffix bytes
-  const mac: number[] = [
-    prefixBytes[0],
-    prefixBytes[1],
-    prefixBytes[2],
-    cryptoRandomInt(0x00, 0x100), // 0-255
-    cryptoRandomInt(0x00, 0x100),
-    cryptoRandomInt(0x00, 0x100)
-  ]
-
-  if (localAdmin) {
-    // Set the locally administered bit (second least significant bit of first byte)
-    mac[0] |= 2
-  }
-
-  const macString = mac
-    .map(byte => zeroFill(2, byte.toString(16)))
-    .join(':')
-    .toUpperCase()
-
-  return macString
+  return randomizeAsVendorWithInfo(vendorQuery, localAdmin).mac
 }
 
 /**
@@ -304,7 +270,7 @@ export function randomizeAsVendorWithInfo(
   }
 
   const macString = mac
-    .map(byte => zeroFill(2, byte.toString(16)))
+    .map(byte => byte.toString(16).padStart(2, '0'))
     .join(':')
     .toUpperCase()
 

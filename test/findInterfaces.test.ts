@@ -23,8 +23,13 @@ function loadFixture(platform: string, filename: string): string {
 
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
+  const mockExecFileSync = (cmd: string, args?: string[]) => {
+    const fullCmd = args ? [cmd, ...args].join(' ') : cmd
+    return mockExecSync(fullCmd)
+  }
   const mock = {
     execSync: mockExecSync,
+    execFileSync: mockExecFileSync,
     exec: vi.fn(),
     execFile: vi.fn(),
     spawn: vi.fn(),
@@ -73,7 +78,7 @@ describe('findInterfacesDarwin', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
 
     expect(Array.isArray(interfaces)).toBe(true)
@@ -114,7 +119,7 @@ describe('findInterfacesDarwin', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     // Filter by device name
     const byDevice = spoof.findInterfaces(['en1'])
@@ -166,7 +171,7 @@ describe('findInterfacesLinuxIp', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
 
     expect(Array.isArray(interfaces)).toBe(true)
@@ -214,7 +219,7 @@ describe('findInterfacesLinuxIp', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     // Filter by device name
     const byDevice = spoof.findInterfaces(['wlan0'])
@@ -269,7 +274,7 @@ describe('findInterfacesLinuxIfconfig', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
 
     expect(Array.isArray(interfaces)).toBe(true)
@@ -316,7 +321,7 @@ describe('findInterfacesWin32', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
 
     expect(Array.isArray(interfaces)).toBe(true)
@@ -346,7 +351,7 @@ describe('findInterfacesWin32', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     // Filter by device name
     const byDevice = spoof.findInterfaces(['wi-fi'])
@@ -386,7 +391,7 @@ describe('findInterface', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const iface = spoof.findInterface('en0')
     expect(iface).toBeDefined()
@@ -405,7 +410,7 @@ describe('findInterface', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
 
     const iface = spoof.findInterface('nonexistent')
     expect(iface).toBeUndefined()
@@ -454,9 +459,9 @@ describe('getLinuxPortType', () => {
     const mockExecSync = vi.fn((cmd: string) => {
       if (cmd === 'which ip') return Buffer.from('/usr/sbin/ip')
       if (cmd === 'ip link show') return Buffer.from(customIpLinkOutput)
-      // For getInterfaceMACLinux calls
+      // For getInterfaceMACLinux calls (execFileSync joins as "ip link show <device>")
       if (cmd.includes('ip') && cmd.includes('link') && cmd.includes('show')) {
-        const match = cmd.match(/'([^']+)'$/)
+        const match = cmd.match(/show\s+(\S+)$/)
         if (match) {
           return Buffer.from(`2: ${match[1]}: <BROADCAST>\n    link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff`)
         }
@@ -467,7 +472,7 @@ describe('getLinuxPortType', () => {
     vi.resetModules()
     vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
 
-    const spoof = await import('../dist/index.js')
+    const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
 
     // Check each device type

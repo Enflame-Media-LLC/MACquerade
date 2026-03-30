@@ -3,8 +3,6 @@ import cp from 'child_process'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
-import { quote } from 'shell-quote'
-import zeroFill from 'zero-fill'
 import { createRequire } from 'module'
 import type { NetworkInterface, RandomFunction, AsyncOptions } from './types.js'
 
@@ -49,13 +47,19 @@ const Winreg = require('winreg') as typeof import('winreg')
 // Windows registry key for interface MAC. Checked on Windows 7
 const WIN_REGISTRY_PATH = '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}'
 
-// Regex to validate a MAC address
+// Regex to extract a MAC address from command output (unanchored for extraction)
 // Example: 00-00-00-00-00-00 or 00:00:00:00:00:00 or 000000000000
 const MAC_ADDRESS_RE = /([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})[:-]?([0-9A-F]{1,2})/i
 
-// Regex to validate a MAC address in cisco-style
+// Anchored regex to validate a MAC address from user input
+const MAC_VALIDATION_RE = /^([0-9A-F]{1,2})[:-]([0-9A-F]{1,2})[:-]([0-9A-F]{1,2})[:-]([0-9A-F]{1,2})[:-]([0-9A-F]{1,2})[:-]([0-9A-F]{1,2})$/i
+
+// Regex to validate a device name (alphanumeric, dots, dashes, underscores)
+const DEVICE_NAME_RE = /^[a-zA-Z0-9._-]+$/
+
+// Regex to validate a MAC address in cisco-style (anchored, requires at least 1 hex digit per group)
 // Example: 0123.4567.89ab
-const CISCO_MAC_ADDRESS_RE = /([0-9A-F]{0,4})\.([0-9A-F]{0,4})\.([0-9A-F]{0,4})/i
+const CISCO_MAC_ADDRESS_RE = /^([0-9A-F]{1,4})\.([0-9A-F]{1,4})\.([0-9A-F]{1,4})$/i
 
 // Linux tool detection and preference
 let preferIfconfig = false
@@ -87,8 +91,14 @@ async function hasIpCommandAsync(options: AsyncOptions = {}): Promise<boolean> {
   }
 }
 
-// Detect ip command availability at module load time (Linux only)
-const ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
+// Lazy detection of ip command availability (Linux only)
+let _ipCommandAvailable: boolean | null = null
+function getIpCommandAvailable(): boolean {
+  if (_ipCommandAvailable === null) {
+    _ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
+  }
+  return _ipCommandAvailable
+}
 
 // Cache for async ip command check
 let ipCommandAvailableAsync: boolean | null = null
@@ -181,7 +191,7 @@ function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
  * Uses `ip` command if available (and not preferring ifconfig), falls back to `ifconfig`.
  */
 function findInterfacesLinux(targets: string[]): NetworkInterface[] {
-  if (!preferIfconfig && ipCommandAvailable) {
+  if (!preferIfconfig && getIpCommandAvailable()) {
     return findInterfacesLinuxIp(targets)
   }
   return findInterfacesLinuxIfconfig(targets)
@@ -278,9 +288,9 @@ function getLinuxPortType(device: string, _flags: string): string {
  */
 function getInterfaceMACLinux(device: string): string | null {
   // Try ip command first if available
-  if (ipCommandAvailable && !preferIfconfig) {
+  if (getIpCommandAvailable() && !preferIfconfig) {
     try {
-      const output = cp.execSync(quote(['ip', 'link', 'show', device]), { stdio: 'pipe' }).toString()
+      const output = cp.execFileSync('ip', ['link', 'show', device], { stdio: 'pipe' }).toString()
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
       return macMatch ? normalize(macMatch[1]) ?? null : null
     } catch {
@@ -289,7 +299,7 @@ function getInterfaceMACLinux(device: string): string | null {
   }
   // Fallback to ifconfig
   try {
-    const output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
+    const output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
     const address = MAC_ADDRESS_RE.exec(output)
     return address ? normalize(address[0]) ?? null : null
   } catch {
@@ -486,6 +496,21 @@ function findInterfacesWin32(targets: string[]): NetworkInterface[] {
       continue
     }
   }
+
+  // Push the final interface (the loop only pushes when the *next* header is encountered)
+  if (it !== null) {
+    if (targets.length === 0) {
+      interfaces.push(it)
+    } else {
+      for (const target of targets) {
+        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
+          interfaces.push(it)
+          break
+        }
+      }
+    }
+  }
+
   return interfaces
 }
 
@@ -505,7 +530,7 @@ function getInterfaceMAC(device: string): string | null {
   if (process.platform === 'darwin' || process.platform === 'linux') {
     let output: string
     try {
-      output = cp.execSync(quote(['ifconfig', device]), { stdio: 'pipe' }).toString()
+      output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
     } catch {
       return null
     }
@@ -526,7 +551,10 @@ function getInterfaceMAC(device: string): string | null {
  *   Windows: this is the network adapter name in ipconfig
  */
 function setInterfaceMAC(device: string, mac: string, port?: string): void {
-  if (!MAC_ADDRESS_RE.exec(mac)) {
+  if (!DEVICE_NAME_RE.test(device)) {
+    throw new Error(device + ' is not a valid device name')
+  }
+  if (!MAC_VALIDATION_RE.exec(mac)) {
     throw new Error(mac + ' is not a valid MAC address')
   }
 
@@ -537,8 +565,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
       // Turn off the device, assuming it's an airport device, to disassociate from any
       // networks and then turn it back on so we can change the MAC.
       try {
-        cp.execSync(quote(['networksetup', '-setairportpower', device, 'off']))
-        cp.execSync(quote(['networksetup', '-setairportpower', device, 'on']))
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
       } catch (err) {
         throw new Error('Unable to power cycle wifi device', { cause: err })
       }
@@ -546,7 +574,7 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
 
     // Change the MAC.
     try {
-      cp.execSync(quote(['ifconfig', device, 'ether', mac]))
+      cp.execFileSync('ifconfig', [device, 'ether', mac])
     } catch (err) {
       throw new Error('Unable to change MAC address', { cause: err })
     }
@@ -554,8 +582,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
     // Restart airport so it will associate with known networks (if any)
     if (isWirelessPort) {
       try {
-        cp.execSync(quote(['networksetup', '-setairportpower', device, 'off']))
-        cp.execSync(quote(['networksetup', '-setairportpower', device, 'on']))
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
       } catch (err) {
         throw new Error('Unable to restart wifi device', { cause: err })
       }
@@ -563,88 +591,28 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
   } else if (process.platform === 'linux') {
     // Set the device's mac address.
     // Handles shutting down and starting back up interface.
-    if (!preferIfconfig && ipCommandAvailable) {
+    if (!preferIfconfig && getIpCommandAvailable()) {
       // Use ip command (iproute2 - modern)
       try {
-        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'down']))
-        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'address', mac]))
-        cp.execSync(quote(['ip', 'link', 'set', 'dev', device, 'up']))
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'down'])
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'address', mac])
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'up'])
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
     } else {
       // Use ifconfig command (net-tools - legacy)
       try {
-        cp.execSync(quote(['ifconfig', device, 'down', 'hw', 'ether', mac]))
-        cp.execSync(quote(['ifconfig', device, 'up']))
+        cp.execFileSync('ifconfig', [device, 'down', 'hw', 'ether', mac])
+        cp.execFileSync('ifconfig', [device, 'up'])
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
     }
   } else if (process.platform === 'win32') {
-    // Locate adapter's registry and update network address (mac)
-    const regKey = new Winreg({
-      hive: Winreg.HKLM,
-      key: WIN_REGISTRY_PATH
-    })
-
-    regKey.keys((err: Error | null, keys: Winreg.Registry[]) => {
-      if (err) {
-        console.log('ERROR: ' + err)
-      } else {
-        // Loop over all available keys and find the right adapter
-        for (let i = 0; i < keys.length; i++) {
-          tryWindowsKey(keys[i].key, device, mac)
-        }
-      }
-    })
+    warnDeprecated('setInterfaceMAC')
+    throw new Error('Sync MAC address setting is not supported on Windows. Use setInterfaceMACAsync() instead.')
   }
-}
-
-/**
- * Tries to set the "NetworkAddress" value on the specified registry key for given
- * `device` to `mac`.
- */
-function tryWindowsKey(key: string, device: string, mac: string): boolean {
-  // Skip the Properties key to avoid problems with permissions
-  if (key.indexOf('Properties') > -1) {
-    return false
-  }
-
-  const networkAdapterKeyPath = new Winreg({
-    hive: Winreg.HKLM,
-    key
-  })
-
-  // we need to format the MAC a bit for Windows
-  mac = mac.replace(/:/g, '')
-
-  networkAdapterKeyPath.values((err: Error | null, values: Winreg.RegistryItem[]) => {
-    let gotAdapter = false
-    if (err) {
-      console.log('ERROR: ' + err)
-    } else {
-      for (let x = 0; x < values.length; x++) {
-        if (values[x].name === 'AdapterModel') {
-          gotAdapter = true
-          break
-        }
-      }
-
-      if (gotAdapter) {
-        networkAdapterKeyPath.set('NetworkAddress', 'REG_SZ', mac, () => {
-          try {
-            cp.execFileSync('netsh', ['interface', 'set', 'interface', device, 'disable'])
-            cp.execFileSync('netsh', ['interface', 'set', 'interface', device, 'enable'])
-          } catch (cause) {
-            throw new Error('Unable to restart device, is the cmd running as admin?', { cause })
-          }
-        })
-      }
-    }
-  })
-
-  return false
 }
 
 /**
@@ -684,7 +652,7 @@ function randomize(localAdmin?: boolean): string {
     vendor[0],
     vendor[1],
     vendor[2],
-    random(0x00, 0x7f),
+    random(0x00, 0xff),
     random(0x00, 0xff),
     random(0x00, 0xff)
   ]
@@ -702,7 +670,7 @@ function randomize(localAdmin?: boolean): string {
   }
 
   return mac
-    .map(byte => zeroFill(2, byte.toString(16)))
+    .map(byte => byte.toString(16).padStart(2, '0'))
     .join(':')
     .toUpperCase()
 }
@@ -721,7 +689,7 @@ function normalize(mac: string): string | undefined {
   if (m) {
     const halfwords = m.slice(1)
     mac = halfwords.map((halfword) => {
-      return zeroFill(4, halfword)
+      return halfword.padStart(4, '0')
     }).join('')
     return chunk(mac, 2).join(':').toUpperCase()
   }
@@ -730,7 +698,7 @@ function normalize(mac: string): string | undefined {
   if (m) {
     const bytes = m.slice(1)
     return bytes
-      .map(byte => zeroFill(2, byte))
+      .map(byte => byte.padStart(2, '0'))
       .join(':')
       .toUpperCase()
   }
@@ -1027,6 +995,21 @@ async function findInterfacesWin32Async(targets: string[], options: AsyncOptions
       continue
     }
   }
+
+  // Push the final interface (the loop only pushes when the *next* header is encountered)
+  if (it !== null) {
+    if (targets.length === 0) {
+      interfaces.push(it)
+    } else {
+      for (const target of targets) {
+        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
+          interfaces.push(it)
+          break
+        }
+      }
+    }
+  }
+
   return interfaces
 }
 
@@ -1118,7 +1101,10 @@ async function getInterfaceMACAsync(device: string, options: AsyncOptions = {}):
  *   Windows: this is the network adapter name in ipconfig
  */
 async function setInterfaceMACAsync(device: string, mac: string, port?: string, options: AsyncOptions = {}): Promise<void> {
-  if (!MAC_ADDRESS_RE.exec(mac)) {
+  if (!DEVICE_NAME_RE.test(device)) {
+    throw new Error(device + ' is not a valid device name')
+  }
+  if (!MAC_VALIDATION_RE.exec(mac)) {
     throw new Error(mac + ' is not a valid MAC address')
   }
 
