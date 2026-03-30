@@ -20,18 +20,18 @@
     "zero-fill": "^2.2.4"
   },
   "devDependencies": {
-    "@stryker-mutator/core": "^9.4.0",
-    "@stryker-mutator/vitest-runner": "^9.4.0",
+    "@stryker-mutator/core": "^9.6.0",
+    "@stryker-mutator/vitest-runner": "^9.6.0",
     "@types/common-tags": "^1.8.4",
     "@types/minimist": "^1.2.5",
-    "@types/node": "^25.0.10",
+    "@types/node": "^25.5.0",
     "@types/shell-quote": "^1.7.5",
     "@types/winreg": "^1.2.36",
-    "@vitest/coverage-v8": "^4.0.18",
-    "oxlint": "^1.41.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "oxlint": "^1.57.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   },
   "homepage": "https://github.com/TheJACKedViking/spoof#readme",
   "keywords": [
@@ -67,7 +67,7 @@
     "url": "git+https://github.com/TheJACKedViking/spoof.git"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "start": "node dist/cli.js",
     "test": "yarn build && yarn lint && vitest run",
     "test:only": "vitest run",
@@ -104,6 +104,6 @@
   ],
   "packageManager": "yarn@4.12.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   }
 }
