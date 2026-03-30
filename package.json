@@ -102,6 +102,13 @@
       "url": "https://feross.org/support"
     }
   ],
+  "resolutions": {
+    "picomatch": "^4.0.4",
+    "tar": "^7.5.11",
+    "minimatch": "^10.2.4",
+    "rollup": "^4.59.0",
+    "@isaacs/brace-expansion": "^5.0.1"
+  },
   "packageManager": "yarn@4.12.0",
   "engines": {
     "node": ">=24"
