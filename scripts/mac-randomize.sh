@@ -226,7 +226,7 @@ while true; do
 
   case "$key" in
     $'\033')  # Escape sequence (arrow keys or standalone Escape)
-      IFS= read -rsn2 -t 0.1 rest < /dev/tty || true
+      IFS= read -rsn2 -t 1 rest < /dev/tty || true
       if [ -z "$rest" ]; then
         # Standalone Escape — cancel
         printf '\033[?25h'
