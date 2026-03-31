@@ -1539,13 +1539,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/shell-quote@npm:^1.7.5":
-  version: 1.7.5
-  resolution: "@types/shell-quote@npm:1.7.5"
-  checksum: 10c0/ddcf225e85e5520e3f44411d7d79eee0e56477fab705d0d93e293b61b9f8de2a57db6e859d492a24bc9e0d071c0490271efeae832756e2ac0d4d255922ac281d
-  languageName: node
-  linkType: hard
-
 "@types/winreg@npm:^1.2.36":
   version: 1.2.36
   resolution: "@types/winreg@npm:1.2.36"
@@ -3526,13 +3519,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shell-quote@npm:^1.8.3":
-  version: 1.8.3
-  resolution: "shell-quote@npm:1.8.3"
-  checksum: 10c0/bee87c34e1e986cfb4c30846b8e6327d18874f10b535699866f368ade11ea4ee45433d97bf5eada22c4320c27df79c3a6a7eb1bf3ecfc47f2c997d9e5e2672fd
-  languageName: node
-  linkType: hard
-
 "side-channel-list@npm:^1.0.0":
   version: 1.0.0
   resolution: "side-channel-list@npm:1.0.0"
@@ -3646,19 +3632,16 @@ __metadata:
     "@types/common-tags": "npm:^1.8.4"
     "@types/minimist": "npm:^1.2.5"
     "@types/node": "npm:^25.5.0"
-    "@types/shell-quote": "npm:^1.7.5"
     "@types/winreg": "npm:^1.2.36"
     "@vitest/coverage-v8": "npm:^4.1.2"
     chalk: "npm:^5.6.2"
     common-tags: "npm:^1.8.2"
     minimist: "npm:^1.2.8"
     oxlint: "npm:^1.57.0"
-    shell-quote: "npm:^1.8.3"
     tsup: "npm:^8.5.1"
     typescript: "npm:^6.0.2"
     vitest: "npm:^4.1.2"
     winreg: "npm:^1.2.5"
-    zero-fill: "npm:^2.2.4"
   bin:
     spoof: ./dist/cli.js
   languageName: unknown
@@ -4185,13 +4168,6 @@ __metadata:
   version: 2.1.2
   resolution: "yoctocolors@npm:2.1.2"
   checksum: 10c0/b220f30f53ebc2167330c3adc86a3c7f158bcba0236f6c67e25644c3188e2571a6014ffc1321943bb619460259d3d27eb4c9cc58c2d884c1b195805883ec7066
-  languageName: node
-  linkType: hard
-
-"zero-fill@npm:^2.2.4":
-  version: 2.2.4
-  resolution: "zero-fill@npm:2.2.4"
-  checksum: 10c0/fc3641cebfcd0ca92fb96ace480fea2c79ffc14cbefe9e524f5ae276ea497a2871a987c826f2167ca77276c6859203d095c2f9cae0f8a0ed33909bccfc38417d
   languageName: node
   linkType: hard
 

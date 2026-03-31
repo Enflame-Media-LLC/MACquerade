@@ -557,6 +557,7 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
   if (!MAC_VALIDATION_RE.exec(mac)) {
     throw new Error(mac + ' is not a valid MAC address')
   }
+  mac = normalize(mac) ?? mac
 
   const isWirelessPort = port && port.toLowerCase() === 'wi-fi'
 
@@ -1107,6 +1108,7 @@ async function setInterfaceMACAsync(device: string, mac: string, port?: string, 
   if (!MAC_VALIDATION_RE.exec(mac)) {
     throw new Error(mac + ' is not a valid MAC address')
   }
+  mac = normalize(mac) ?? mac
 
   const isWirelessPort = port && port.toLowerCase() === 'wi-fi'
   const execOpts = createExecOptions(options)
@@ -1213,7 +1215,8 @@ async function setInterfaceMACWin32Async(device: string, mac: string, options: A
 }
 
 /**
- * Async version of tryWindowsKey.
+ * Tries to set the "NetworkAddress" value on the specified registry key for given
+ * `device` to `mac` (async).
  */
 async function tryWindowsKeyAsync(key: string, device: string, mac: string, options: AsyncOptions = {}): Promise<boolean> {
   if (key.indexOf('Properties') > -1) {
