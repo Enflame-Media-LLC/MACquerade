@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Reconnect stdin to the terminal when run via pipe (e.g., curl | bash).
+# Bash has already buffered the full script from the pipe by this point.
+if [ ! -t 0 ]; then
+  exec < /dev/tty
+fi
+
 echo "=== Spoof MAC Randomizer for macOS ==="
 echo ""
 
@@ -213,7 +219,7 @@ echo "  ↑/↓ navigate  ·  Space select  ·  Enter confirm  ·  Esc/q cancel"
 echo ""
 
 # Save terminal settings and switch to raw mode
-SAVED_TTY=$(stty -g 2>/dev/null)
+SAVED_TTY=$(stty -g 2>/dev/null) || SAVED_TTY=""
 printf '\033[?25l'  # Hide cursor
 
 # First draw
