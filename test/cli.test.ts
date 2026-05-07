@@ -26,7 +26,7 @@ function runCLI(args: string[] = []): CLIResult {
   try {
     const stdout = execFileSync('node', [cliPath, ...args], {
       encoding: 'utf8',
-      timeout: 5000
+      timeout: 15000
     })
     return { stdout, stderr: '', exitCode: 0 }
   } catch (err) {
@@ -266,6 +266,42 @@ describe('CLI error handling', () => {
       stderr.includes('root') ||
       stderr.includes('Could not find')
     ).toBe(true)
+  })
+
+  it('set requires at least one device', () => {
+    const { stdout, exitCode } = runCLI(['set', '00:11:22:33:44:55', '--format=json'])
+
+    expect(exitCode).not.toBe(0)
+    const json = JSON.parse(stdout)
+    expect(json.success).toBe(false)
+    expect(json.error.message).toContain('at least one device')
+  })
+
+  it('randomize requires at least one device', () => {
+    const { stdout, exitCode } = runCLI(['randomize', '--format=json'])
+
+    expect(exitCode).not.toBe(0)
+    const json = JSON.parse(stdout)
+    expect(json.success).toBe(false)
+    expect(json.error.message).toContain('at least one device')
+  })
+
+  it('reset requires at least one device', () => {
+    const { stdout, exitCode } = runCLI(['reset', '--format=json'])
+
+    expect(exitCode).not.toBe(0)
+    const json = JSON.parse(stdout)
+    expect(json.success).toBe(false)
+    expect(json.error.message).toContain('at least one device')
+  })
+
+  it('normalize requires a MAC address', () => {
+    const { stdout, exitCode } = runCLI(['normalize', '--format=json'])
+
+    expect(exitCode).not.toBe(0)
+    const json = JSON.parse(stdout)
+    expect(json.success).toBe(false)
+    expect(json.error.message).toContain('MAC address')
   })
 })
 

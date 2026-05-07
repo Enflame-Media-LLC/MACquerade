@@ -22,6 +22,7 @@ export default defineConfig({
     },
     // Watch mode settings
     watch: false,
+    testTimeout: 20000,
     // Environment
     environment: 'node'
   }

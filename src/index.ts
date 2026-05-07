@@ -1,14 +1,13 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
-import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
-import { createRequire } from 'module'
+import Winreg from 'winreg'
 import type { NetworkInterface, RandomFunction, AsyncOptions } from './types.js'
 
 // Promisified exec functions for async operations
-const execAsync = promisify(exec)
-const execFileAsync = promisify(execFile)
+const execAsync = promisify(cp.exec)
+const execFileAsync = promisify(cp.execFile)
 
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
@@ -38,11 +37,6 @@ function createExecOptions(options: AsyncOptions = {}): { timeout: number; signa
     signal: options.signal
   }
 }
-
-// winreg is CommonJS-only, use createRequire for compatibility
-const require = createRequire(import.meta.url)
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const Winreg = require('winreg') as typeof import('winreg')
 
 // Windows registry key for interface MAC. Checked on Windows 7
 const WIN_REGISTRY_PATH = '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}'
@@ -288,11 +282,12 @@ function getLinuxPortType(device: string, _flags: string): string {
  */
 function getInterfaceMACLinux(device: string): string | null {
   // Try ip command first if available
-  if (getIpCommandAvailable() && !preferIfconfig) {
+  if (!preferIfconfig) {
     try {
       const output = cp.execFileSync('ip', ['link', 'show', device], { stdio: 'pipe' }).toString()
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
-      return macMatch ? normalize(macMatch[1]) ?? null : null
+      const mac = macMatch ? normalize(macMatch[1]) ?? null : null
+      if (mac) return mac
     } catch {
       // Fall through to ifconfig
     }
@@ -527,7 +522,9 @@ function findInterface(target: string): NetworkInterface | undefined {
  * interface's hardware MAC address.
  */
 function getInterfaceMAC(device: string): string | null {
-  if (process.platform === 'darwin' || process.platform === 'linux') {
+  if (process.platform === 'linux') {
+    return getInterfaceMACLinux(device)
+  } else if (process.platform === 'darwin') {
     let output: string
     try {
       output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
@@ -1026,13 +1023,13 @@ async function findInterfaceAsync(target: string, options: AsyncOptions = {}): P
  * Get current MAC address using `ip link show` for a specific device (async version).
  */
 async function getInterfaceMACLinuxAsync(device: string, options: AsyncOptions = {}): Promise<string | null> {
-  const ipAvailable = await getIpCommandAvailableAsync(options)
-  if (ipAvailable && !preferIfconfig) {
+  if (!preferIfconfig) {
     try {
       // Safe: execFile with arguments array prevents injection
       const { stdout } = await execFileAsync('ip', ['link', 'show', device], createExecOptions(options))
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(stdout)
-      return macMatch ? normalize(macMatch[1]) ?? null : null
+      const mac = macMatch ? normalize(macMatch[1]) ?? null : null
+      if (mac) return mac
     } catch {
       // Fall through to ifconfig
     }
@@ -1079,7 +1076,9 @@ async function getInterfaceMACWin32Async(device: string, options: AsyncOptions =
  * Returns currently-set MAC address of given interface (async version).
  */
 async function getInterfaceMACAsync(device: string, options: AsyncOptions = {}): Promise<string | null> {
-  if (process.platform === 'darwin' || process.platform === 'linux') {
+  if (process.platform === 'linux') {
+    return getInterfaceMACLinuxAsync(device, options)
+  } else if (process.platform === 'darwin') {
     try {
       // Safe: execFile with arguments array prevents injection
       const { stdout } = await execFileAsync('ifconfig', [device], createExecOptions(options))
@@ -1210,8 +1209,30 @@ async function setInterfaceMACWin32Async(device: string, mac: string, options: A
 
   for (const key of keys) {
     const found = await tryWindowsKeyAsync(key.key, device, mac, options)
-    if (found) break
+    if (found) return
   }
+
+  throw new Error('Unable to find registry key for network adapter: ' + device)
+}
+
+function registryValue(values: Winreg.RegistryItem[], name: string): string | undefined {
+  return values.find(value => value.name.toLowerCase() === name.toLowerCase())?.value
+}
+
+function registryKeyMatchesDevice(values: Winreg.RegistryItem[], device: string): boolean {
+  const normalizedDevice = device.toLowerCase()
+  const candidateValueNames = [
+    'NetConnectionID',
+    'Name',
+    'DriverDesc',
+    'AdapterModel',
+    'NetCfgInstanceId'
+  ]
+
+  return candidateValueNames.some((name) => {
+    const value = registryValue(values, name)
+    return value?.toLowerCase() === normalizedDevice
+  })
 }
 
 /**
@@ -1232,16 +1253,7 @@ async function tryWindowsKeyAsync(key: string, device: string, mac: string, opti
 
   try {
     const values = await getRegistryValuesAsync(networkAdapterKeyPath)
-    let gotAdapter = false
-
-    for (let x = 0; x < values.length; x++) {
-      if (values[x].name === 'AdapterModel') {
-        gotAdapter = true
-        break
-      }
-    }
-
-    if (gotAdapter) {
+    if (registryKeyMatchesDevice(values, device)) {
       await setRegistryValueAsync(networkAdapterKeyPath, 'NetworkAddress', 'REG_SZ', mac)
       const execOpts = createExecOptions(options)
       await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'disable'], execOpts)

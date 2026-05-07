@@ -65,6 +65,17 @@ const isVerbose = argv.verbose && !argv.quiet
 const isQuiet = argv.quiet
 const timeout = argv.timeout
 
+function requireArg(value: string | undefined, message: string): string {
+  if (!value) throw new Error(message)
+  return value
+}
+
+function requireDevices(devices: string[], commandName: string): void {
+  if (devices.length === 0) {
+    throw new Error(`Please provide at least one device for ${commandName}`)
+  }
+}
+
 // Validate mutually exclusive flags
 if (argv.verbose && argv.quiet) {
   outputError(new Error('Cannot use --verbose and --quiet together'))
@@ -148,7 +159,7 @@ async function init(): Promise<void> {
   } else if (cmd === 'list' || cmd === 'ls') {
     await list()
   } else if (cmd === 'set') {
-    const mac = argv._[1]
+    const mac = requireArg(argv._[1], 'Please provide a MAC address to set')
     const devices = argv._.slice(2)
     await set(mac, devices)
   } else if (cmd === 'randomize') {
@@ -158,7 +169,7 @@ async function init(): Promise<void> {
     const devices = argv._.slice(1)
     await reset(devices)
   } else if (cmd === 'normalize') {
-    const mac = argv._[1]
+    const mac = requireArg(argv._[1], 'Please provide a MAC address to normalize')
     normalizeCmd(mac)
   } else if (cmd === 'lookup') {
     const mac = argv._[1]
@@ -225,6 +236,7 @@ function version(): void {
 
 async function set(mac: string, devices: string[]): Promise<void> {
   verbose(`Setting MAC address to ${mac} for devices: ${devices.join(', ')}`)
+  requireDevices(devices, 'set')
 
   const results: OperationResult[] = []
 
@@ -285,6 +297,8 @@ function normalizeCmd(mac: string): void {
 
 async function randomize(devices: string[]): Promise<void> {
   verbose(`Randomizing MAC address for devices: ${devices.join(', ')}`)
+  requireDevices(devices, 'randomize')
+
   if (argv.local) {
     verbose('Using locally administered address flag')
   }
@@ -368,6 +382,7 @@ async function randomize(devices: string[]): Promise<void> {
 
 async function reset(devices: string[]): Promise<void> {
   verbose(`Resetting MAC address to hardware default for devices: ${devices.join(', ')}`)
+  requireDevices(devices, 'reset')
 
   const results: OperationResult[] = []
 

@@ -19,6 +19,7 @@ fi
 
 # Ensure cleanup on exit
 SPOOF_DIR=""
+INTERFACES_JSON_PATH=""
 cleanup() {
   # Restore cursor visibility
   printf '\033[?25h' 2>/dev/null || true
@@ -26,6 +27,8 @@ cleanup() {
   [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
   # Clean up temp directory
   [ -n "$SPOOF_DIR" ] && rm -rf "$SPOOF_DIR" 2>/dev/null || true
+  # Clean up temporary interface data
+  [ -n "$INTERFACES_JSON_PATH" ] && rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -140,19 +143,36 @@ fi
 
 # Parse interface data into parallel arrays using node
 iface_count=0
-eval "$(node -e "
-  var data = JSON.parse(process.argv[1]);
-  var ifaces = data.interfaces;
-  ifaces.forEach(function(iface, i) {
-    var port = (iface.port || 'Unknown').replace(/'/g, '');
-    var device = (iface.device || '').replace(/'/g, '');
-    var addr = (iface.currentAddress || iface.address || 'no address').replace(/'/g, '');
-    console.log('IFACE_PORTS[' + i + ']=' + JSON.stringify(port));
-    console.log('IFACE_DEVICES[' + i + ']=' + JSON.stringify(device));
-    console.log('IFACE_ADDRS[' + i + ']=' + JSON.stringify(addr));
-  });
-  console.log('iface_count=' + ifaces.length);
-" "$interfaces_json")"
+IFACE_PORTS=()
+IFACE_DEVICES=()
+IFACE_ADDRS=()
+
+INTERFACES_JSON_PATH=$(mktemp "${TMPDIR:-/tmp}/spoof-interfaces.XXXXXX")
+printf '%s' "$interfaces_json" > "$INTERFACES_JSON_PATH"
+
+while IFS=$'\t' read -r port device addr; do
+  IFACE_PORTS[$iface_count]="$port"
+  IFACE_DEVICES[$iface_count]="$device"
+  IFACE_ADDRS[$iface_count]="$addr"
+  iface_count=$((iface_count + 1))
+done < <(node - "$INTERFACES_JSON_PATH" <<'NODE'
+const fs = require('fs')
+
+const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
+const ifaces = Array.isArray(data.interfaces) ? data.interfaces : []
+
+function clean(value, fallback) {
+  return String(value || fallback).replace(/[\t\r\n]/g, ' ')
+}
+
+for (const iface of ifaces) {
+  const port = clean(iface.port, 'Unknown')
+  const device = clean(iface.device, '')
+  const addr = clean(iface.currentAddress || iface.address, 'no address')
+  console.log(`${port}\t${device}\t${addr}`)
+}
+NODE
+)
 
 if [ "$iface_count" -eq 0 ]; then
   echo "Error: No network interfaces found."

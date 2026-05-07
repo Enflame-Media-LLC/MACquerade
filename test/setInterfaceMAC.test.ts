@@ -26,6 +26,44 @@ function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
   return { default: mock, ...mock }
 }
 
+function createAsyncChildProcessMock(
+  mockExecSync: (cmd: string) => Buffer,
+  mockExec: (cmd: string) => string,
+  mockExecFile: (cmd: string, args: string[]) => string
+) {
+  const syncMock = createChildProcessMock(mockExecSync)
+  const exec = vi.fn((cmd: string, _options: unknown, callback?: (err: Error | null, stdout?: string, stderr?: string) => void) => {
+    const cb = typeof _options === 'function'
+      ? _options as (err: Error | null, stdout?: string, stderr?: string) => void
+      : callback
+    try {
+      cb?.(null, { stdout: mockExec(cmd), stderr: '' } as unknown as string, '')
+    } catch (err) {
+      cb?.(err as Error, '', '')
+    }
+  })
+  const execFile = vi.fn((cmd: string, args: string[], _options: unknown, callback?: (err: Error | null, stdout?: string, stderr?: string) => void) => {
+    const cb = typeof _options === 'function'
+      ? _options as (err: Error | null, stdout?: string, stderr?: string) => void
+      : callback
+    try {
+      cb?.(null, { stdout: mockExecFile(cmd, args), stderr: '' } as unknown as string, '')
+    } catch (err) {
+      cb?.(err as Error, '', '')
+    }
+  })
+  return {
+    ...syncMock,
+    default: {
+      ...syncMock.default,
+      exec,
+      execFile
+    },
+    exec,
+    execFile
+  }
+}
+
 // =============================================================================
 // Error Handling Tests
 // =============================================================================
@@ -445,6 +483,37 @@ describe('getInterfaceMAC linux', () => {
     expect(eth0).toBeDefined()
     expect(eth0?.currentAddress).toBe('00:11:22:33:44:55')
   })
+
+  it('async API uses ip command when ifconfig is unavailable', async () => {
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return Buffer.from('/usr/sbin/ip')
+      return Buffer.from('')
+    })
+    const mockExec = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return '/usr/sbin/ip'
+      return ''
+    })
+    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
+      const fullCmd = [cmd, ...args].join(' ')
+      if (fullCmd === 'ip link show eth0') {
+        return `2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+    link/ether 00:11:22:33:44:55 brd ff:ff:ff:ff:ff:ff`
+      }
+      if (cmd === 'ifconfig') {
+        throw new Error('ifconfig not found')
+      }
+      return ''
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
+
+    const spoof = await import('../src/index.ts')
+
+    const mac = await spoof.getInterfaceMACAsync('eth0')
+    expect(mockExecFile.mock.calls).toEqual([['ip', ['link', 'show', 'eth0']]])
+    expect(mac).toBe('00:11:22:33:44:55')
+  })
 })
 
 describe('getInterfaceMAC error handling', () => {
@@ -485,5 +554,92 @@ Ethernet Address: AA:BB:CC:DD:EE:FF`)
 
     expect(en0).toBeDefined()
     expect(en0?.currentAddress).toBeNull()
+  })
+})
+
+// =============================================================================
+// Windows Registry Matching Tests
+// =============================================================================
+
+describe('setInterfaceMACAsync win32 registry matching', () => {
+  let originalPlatform: string
+
+  beforeEach(() => {
+    originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('sets NetworkAddress only on the registry key for the requested adapter', async () => {
+    const setCalls: Array<{ key: string; name: string; value: string }> = []
+    const netshCalls: string[] = []
+
+    const registryValues: Record<string, Array<{ name: string; value: string }>> = {
+      '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0001': [
+        { name: 'AdapterModel', value: 'Ethernet Adapter' },
+        { name: 'DriverDesc', value: 'Ethernet Adapter' }
+      ],
+      '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0002': [
+        { name: 'AdapterModel', value: 'Wi-Fi Adapter' },
+        { name: 'DriverDesc', value: 'Wi-Fi Adapter' },
+        { name: 'NetConnectionID', value: 'Wi-Fi' }
+      ]
+    }
+
+    class MockWinreg {
+      static HKLM = 'HKLM'
+      key: string
+
+      constructor(options: { key: string }) {
+        this.key = options.key
+      }
+
+      keys(callback: (err: Error | null, keys?: MockWinreg[]) => void): void {
+        callback(null, [
+          new MockWinreg({ key: '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0001' }),
+          new MockWinreg({ key: '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0002' })
+        ])
+      }
+
+      values(callback: (err: Error | null, values?: Array<{ name: string; value: string }>) => void): void {
+        callback(null, registryValues[this.key] || [])
+      }
+
+      set(name: string, _type: string, value: string, callback: (err: Error | null) => void): void {
+        setCalls.push({ key: this.key, name, value })
+        callback(null)
+      }
+    }
+
+    const mockExecSync = vi.fn(() => Buffer.from(''))
+    const mockExec = vi.fn(() => '')
+    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
+      netshCalls.push([cmd, ...args].join(' '))
+      return ''
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
+    vi.doMock('winreg', () => ({ default: MockWinreg }))
+
+    const spoof = await import('../src/index.ts')
+    await spoof.setInterfaceMACAsync('Wi-Fi', '00:11:22:33:44:55')
+
+    expect(setCalls).toEqual([
+      {
+        key: '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0002',
+        name: 'NetworkAddress',
+        value: '001122334455'
+      }
+    ])
+    expect(netshCalls).toEqual([
+      'netsh interface set interface Wi-Fi disable',
+      'netsh interface set interface Wi-Fi enable'
+    ])
   })
 })
