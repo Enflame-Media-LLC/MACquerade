@@ -50,7 +50,15 @@ pnpm-lock.yaml
 
 # Turbo
 .turbo/
+
+# Local AI / agent tooling (per-developer, not shared)
 /.claude
 /.serena
 .mcp.json
-CLAUDE.md
+.gitnexus/
+.remember/
+.zencoder/
+.zenflow/
+
+# Superpowers / Claude Code agent plans (local workflow artifacts)
+docs/superpowers/
