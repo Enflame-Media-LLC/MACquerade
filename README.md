@@ -1,223 +1,290 @@
-# spoof [![travis][travis-image]][travis-url] [![npm][npm-image]][npm-url] [![downloads][downloads-image]][downloads-url] [![javascript style guide][standard-image]][standard-url]
+# spoof
 
-[travis-image]: https://img.shields.io/travis/feross/spoof/master.svg
-[travis-url]: https://travis-ci.org/feross/spoof
+[![npm][npm-image]][npm-url]
+[![downloads][downloads-image]][downloads-url]
+
 [npm-image]: https://img.shields.io/npm/v/spoof.svg
 [npm-url]: https://npmjs.org/package/spoof
 [downloads-image]: https://img.shields.io/npm/dm/spoof.svg
 [downloads-url]: https://npmjs.org/package/spoof
-[standard-image]: https://img.shields.io/badge/code_style-standard-brightgreen.svg
-[standard-url]: https://standardjs.com
 
-### Easily spoof your MAC address in macOS, Windows, & Linux
+### Easily spoof your MAC address on macOS, Linux & Windows
 
-Node.js port of the popular [SpoofMAC](https://pypi.python.org/pypi/SpoofMAC/) Python utility (GitHub: [feross/SpoofMAC](https://github.com/feross/SpoofMAC)).
+A modern, TypeScript Node.js CLI for changing MAC addresses. Maintained by
+**[TheJACKedViking](https://github.com/TheJACKedViking)** — credit and inspiration to
+**[Feross Aboukhadijeh](https://feross.org)**, author of the original
+[`SpoofMAC`](https://github.com/feross/SpoofMAC) (Python) and
+[`spoof`](https://github.com/feross/spoof) (Node.js) projects.
 
 ![anonymous](img/img.png)
 
 ## Why?
 
-I made this because changing your MAC address on macOS is harder than it should be. The Wi-Fi card needs to be manually disassociated from any connected networks in order for the change to apply correctly – super annoying! Doing this manually each time is tedious and lame.
+Changing your MAC address on macOS is harder than it should be — the Wi-Fi card needs
+to be disassociated from any connected network before the change takes effect. `spoof`
+handles all of that for you in a single command. It also works on Linux and Windows.
 
-Instead, just run `spoof` and change your MAC address in one command.
+---
 
-**Now for Windows and Linux, too!**
+## Quick Start (macOS one-liner)
 
-## Instructions for beginners
+The fastest way to randomize your MAC on macOS. This installs Homebrew + Node.js if
+needed, clones and builds `spoof`, then randomizes the MAC of an interface you pick:
 
-Here are some easy install instructions for complete beginners.
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheJACKedViking/spoof/main/scripts/mac-randomize.sh | bash
+```
 
-1. Install [node.js](http://nodejs.org/) (it's a programming platform like Python, Java, etc.)
+> The script is interactive — it will prompt you to choose a network interface and may
+> ask for your `sudo` password to apply the change. Read
+> [`scripts/mac-randomize.sh`](scripts/mac-randomize.sh) before running, as with any
+> piped installer.
 
-2. Open **Terminal**. Let's use Spotlight to find it.
+---
 
-  ![terminal](img/spotlight-terminal.png)
+## Detailed Install
 
-1. Install **spoof** by typing this command and pressing `Enter`.
+For everyday use (any platform), install via npm or yarn:
 
-  ```bash
-  npm install spoof -g
-  ```
+### 1. Install Node.js 24+
 
-  That's it! **spoof** is installed.
+Spoof requires **Node.js >= 24**. Install from [nodejs.org](https://nodejs.org/) or
+via your preferred version manager (nvm, fnm, volta, Homebrew, etc.).
 
-1. Now, let's print out the **help page**. Just like before, run this command in **Terminal**.
+### 2. Install spoof globally
 
-  ```bash
-  spoof --help
-  ```
+```bash
+npm install -g spoof
+# or
+yarn global add spoof
+```
 
-1. Now, let's print out all our network devices.
+You should now have a `spoof` command on your `PATH`:
 
-  ```bash
-  spoof list
-  ```
+```bash
+spoof --help
+spoof version
+```
 
-1. Find the device you want to set or randomize the MAC address for in the list. Wi-Fi is usually called `en0` on modern Macs. Then, run this command:
+### 3. (Optional) Run without installing
 
-  ```bash
-  sudo spoof randomize en0
-  ```
+```bash
+npx spoof list
+sudo npx spoof randomize en0
+```
 
-  You may need to reconnect to the Wi-Fi hotspot you were connected to. But, that's it! Your MAC address is changed. You can confirm by re-running:
+### 4. (Developers) Install from source
 
-   ```bash
-   spoof list
-   ```
+```bash
+git clone https://github.com/TheJACKedViking/spoof.git
+cd spoof
+yarn install
+yarn build
+node dist/cli.js --help
+```
 
-## Full command list
+---
 
-You can always see up-to-date usage instructions by running spoof --help.
+## Platform Notes
 
-### List available devices
+- **macOS** — uses `networksetup` and the `airport` binary. Requires `sudo` for changes.
+- **Linux** — uses `ip` (iproute2) by default and falls back to `ifconfig`. Pass
+  `--prefer-ifconfig` to force the legacy tool. Requires `sudo` for changes.
+- **Windows** — uses `ipconfig` and the Windows Registry (via `winreg`). Must be run
+  from an **Administrator** shell. Changes to MAC may require disabling/re-enabling
+  the adapter (handled automatically where possible).
+
+---
+
+## Full Command List
+
+You can always view up-to-date usage with `spoof --help`.
+
+### `spoof list` (alias: `ls`)
+
+List all available network interfaces.
 
 ```bash
 spoof list
 - "Ethernet" on device "en0" with MAC address 70:56:51:BE:B3:00
-- "Wi-Fi" on device "en1" with MAC address 70:56:51:BE:B3:01 currently set to 70:56:51:BE:B3:02
-- "Bluetooth PAN" on device "en1"
+- "Wi-Fi"    on device "en1" with MAC address 70:56:51:BE:B3:01 currently set to 70:56:51:BE:B3:02
+- "Bluetooth PAN" on device "en2"
 ```
 
-### List available devices, but only those on Wi-Fi
+Filter to wireless interfaces only:
 
 ```bash
 spoof list --wifi
-- "Wi-Fi" on device "en0" with MAC address 70:56:51:BE:B3:6F
 ```
 
-### Randomize MAC address *(requires root)*
+### `spoof set <mac> <devices...>` *(requires root/admin)*
 
-You can use the hardware port name, such as:
+Set a specific MAC address on one or more devices:
 
 ```bash
-spoof randomize wi-fi
+sudo spoof set 00:11:22:33:44:55 en0
 ```
 
-or the device name, such as:
+### `spoof randomize <devices...>` *(requires root/admin)*
+
+Set a random MAC address. Accepts either the device name (`en0`) or the hardware port
+name (`wi-fi`).
 
 ```bash
-spoof randomize en0
+sudo spoof randomize en0
+sudo spoof randomize wi-fi
 ```
 
-### Set device MAC address to something specific *(requires root)*
+Set the locally-administered bit on the randomized address:
 
 ```bash
-spoof set 00:00:00:00:00:00 en0
+sudo spoof randomize en0 --local
 ```
 
-### Reset device to its original MAC address *(requires root)*
-
-While not always possible (because sometimes the original hardware MAC
-isn't available), you can try setting the MAC address of a device back
-to its burned-in address using `reset`:
+Randomize using a specific vendor's OUI prefix:
 
 ```bash
-spoof reset wi-fi
+sudo spoof randomize en0 --vendor=apple
+sudo spoof randomize en0 --vendor=samsung
+sudo spoof randomize en0 --vendor=intel
 ```
 
-On macOS, another option to reset your MAC address is to simply restart your
-computer. macOS doesn't preserve changes to your MAC address between restarts.
+### `spoof reset <devices...>` *(requires root/admin)*
 
-### Randomize as a specific vendor *(requires root)*
-
-Want to appear as a specific device type? Use the `--vendor` flag:
+Restore the device's burned-in / hardware MAC address (when readable):
 
 ```bash
-spoof randomize en0 --vendor=apple    # Appear as an Apple device
-spoof randomize en0 --vendor=samsung  # Appear as a Samsung device
-spoof randomize en0 --vendor=intel    # Appear as an Intel NIC
+sudo spoof reset wi-fi
 ```
 
-### Look up vendor for a MAC address
+> On macOS, restarting the computer also resets the MAC — macOS does not persist
+> changes across reboots.
+
+### `spoof normalize <mac>`
+
+Normalize a MAC address into the canonical colon-separated, uppercase form:
+
+```bash
+spoof normalize 0003.9312.3456
+# 00:03:93:12:34:56
+```
+
+### `spoof lookup <mac>`
+
+Look up the vendor for a MAC address or OUI prefix:
 
 ```bash
 spoof lookup 00:03:93:12:34:56
-Apple, Inc.
+# Apple, Inc.
 ```
 
-### Search the vendor database
+### `spoof vendors [<query>]`
+
+Search the bundled OUI vendor database (fuzzy match), or show database stats with no
+query:
 
 ```bash
 spoof vendors apple
-00:03:93 - Apple, Inc.
-00:05:02 - Apple, Inc.
-...
+# 00:03:93 - Apple, Inc.
+# 00:05:02 - Apple, Inc.
+# ...
 
-spoof vendors          # Show database stats
-OUI Database: 1691 prefixes from 98 vendors
+spoof vendors
+# OUI Database: 1691 prefixes from 98 vendors
 ```
 
-The vendor search supports fuzzy matching, so minor typos are tolerated.
+### `spoof version`
 
-### Update the OUI database
+Print the installed package version.
 
-To refresh the bundled OUI database from IEEE:
+### `spoof help`
+
+Show the help screen.
+
+---
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--wifi` | Only show wireless interfaces (with `list`) |
+| `--local` | Set the locally-administered bit on randomized MACs |
+| `--vendor=<name>` | Randomize using a specific vendor's OUI prefix |
+| `--prefer-ifconfig` | On Linux, force `ifconfig` instead of `ip` |
+| `--format=json` | Emit structured JSON (for scripts / automation) |
+| `--dry-run`, `-n` | Show what would happen without making changes |
+| `--verbose`, `-v` | Detailed diagnostic logging |
+| `--quiet`, `-q` | Suppress non-essential output |
+| `--timeout=<ms>` | Per-operation timeout in milliseconds (default 30000) |
+| `--version` | Print package version |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Error |
+| `2` | Dry-run would fail (e.g. device not found) |
+
+---
+
+## Updating the OUI database
+
+The bundled vendor database (`src/data/oui.json`) can be refreshed from the IEEE
+registry:
 
 ```bash
-npm run update-oui
+yarn update-oui
 ```
 
-## Linux support?
+---
 
-Yep!
+## Persisting MAC changes across reboots
 
-Linux support requires the `ifconfig` utility to be installed. It comes
-pre-installed with most Linux distributions.
+If you want randomized MACs that persist between restarts on macOS, the original
+[Python SpoofMAC](https://github.com/feross/SpoofMAC) project has a launchd recipe —
+see its
+[run-automatically-at-startup](https://github.com/feross/SpoofMAC#optional-run-automatically-at-startup)
+guide.
 
-## Windows support?
-
-Yep!
-
-## Automatically randomize MAC address on startup
-
-If you want to set or randomize your MAC address and have it persist between restarts on
-macOS, consider using the Python version of this program,
-[SpoofMAC](https://github.com/feross/SpoofMAC), and following the instructions
-for [running automatically on startup](https://github.com/feross/spoofmac#optional-run-automatically-at-startup).
+---
 
 ## Development
 
-### Testing
-
-Run all tests with linting:
-
 ```bash
-yarn test
-```
-
-Run tests with coverage:
-
-```bash
-yarn coverage
+yarn install
+yarn build              # tsup + tsc --emitDeclarationOnly
+yarn test               # build + lint + vitest
+yarn test:only          # vitest only
+yarn test:watch         # watch mode
+yarn coverage           # vitest run --coverage
+yarn lint               # oxlint
+yarn lint:fix           # oxlint --fix
+yarn typecheck          # tsc --noEmit
+yarn validate           # build + lint + tests
+yarn validate:strict    # typecheck + build + lint + tests
+yarn mutation           # Stryker mutation testing
 ```
 
 ### Mutation Testing
 
-This project uses [Stryker Mutator](https://stryker-mutator.io/) to verify test effectiveness. Mutation testing introduces small changes (mutations) to your code and checks if tests catch them.
+This project uses [Stryker](https://stryker-mutator.io/) to verify test effectiveness:
 
 ```bash
 yarn mutation
 ```
 
-Results are saved to `reports/mutation/mutation.html`.
+Reports are written to `reports/mutation/mutation.html`.
 
-**Baseline Mutation Score (January 2026):**
+---
 
-| File | Score | Covered |
-|------|-------|---------|
-| index.ts | 37.41% | 78.46% |
-| oui.ts | 0% | 0% |
-| cli.ts | 0% | N/A (excluded) |
-| **Total** | **24.08%** | **74.03%** |
+## Credits
 
-Note: CLI is excluded from mutation testing as it's tested via integration tests. The "covered" percentage measures mutation score for only the code that has test coverage.
-
-**Interpreting Results:**
-- **Killed**: Test caught the mutation (good)
-- **Survived**: Test didn't catch the mutation (test gap)
-- **No Coverage**: Code not covered by tests
-- **Timeout**: Mutation caused infinite loop (counted as killed)
+- **Maintainer / developer:** [TheJACKedViking](https://github.com/TheJACKedViking)
+- **Inspired by / credit to:** [Feross Aboukhadijeh](https://feross.org) — original
+  author of [`SpoofMAC`](https://github.com/feross/SpoofMAC) (Python) and the original
+  Node [`spoof`](https://github.com/feross/spoof) package this fork builds on.
 
 ## License
 
-MIT. Copyright [Feross Aboukhadijeh](https://feross.org).
+MIT.

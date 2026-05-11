@@ -4,9 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Spoof is a Node.js CLI tool for changing MAC addresses on macOS, Linux, and Windows. It's a port of the Python SpoofMAC utility by Feross Aboukhadijeh.
+Spoof is a Node.js CLI tool for changing MAC addresses on macOS, Linux, and Windows.
+This is the **TheJACKedViking** fork — a TypeScript rewrite originally inspired by the
+Python `SpoofMAC` / Node `spoof` utilities by Feross Aboukhadijeh.
 
-Requires Node.js 24+ and TypeScript 6.
+- Runtime: Node.js >= 24
+- Language: TypeScript 6 (ESM, `"type": "module"`)
+- Package manager: Yarn 4 (`packageManager: yarn@4.14.1`)
+- Bin: `dist/cli.js` (installed as the `spoof` command)
 
 ## Commands
 
@@ -14,17 +19,21 @@ Requires Node.js 24+ and TypeScript 6.
 ```bash
 yarn install           # Install dependencies
 yarn build             # Build JS (tsup) + type declarations (tsc --emitDeclarationOnly)
+yarn start             # Run the built CLI (node dist/cli.js)
 yarn test              # Build + lint (oxlint) + test (vitest)
 yarn test:only         # Run tests without building first
 yarn test:watch        # Run tests in watch mode
 yarn test:coverage     # Build + run tests with coverage
+yarn coverage          # Alias for build + vitest run --coverage
 yarn lint              # Run oxlint only
 yarn lint:fix          # Auto-fix lint issues
-yarn typecheck         # Run TypeScript type checking (tsc --noEmit)
+yarn typecheck         # Type check only (tsc --noEmit)
 yarn validate          # Build + lint + tests
-yarn validate:strict   # Typecheck + build + lint + tests
+yarn validate:strict   # Typecheck + build + lint + tests (runs in prepublishOnly/preversion)
 yarn mutation          # Run Stryker mutation testing
-yarn update-oui       # Regenerate src/data/oui.json from IEEE data
+yarn update-oui        # Regenerate src/data/oui.json from IEEE data
+yarn clean             # Remove node_modules, dist, .yarn/cache
+yarn reinstall         # clean + install
 ```
 
 ### Running a Single Test
@@ -52,7 +61,7 @@ TypeScript source lives in `src/`, built output goes to `dist/`.
   - Utilities: `normalize(mac)`, `randomize(localAdmin)`, `setPreferIfconfig()`, `setRandomFunction()`
   - Re-exports OUI functions and all types
 
-- **`src/cli.ts`** - CLI entry point. Parses args with minimist, supports `list`, `set`, `randomize`, `reset`, `normalize`, `lookup`, `vendors` commands. Supports `--format=json`, `--dry-run`, `--verbose`, `--quiet`, `--vendor`, `--timeout` flags.
+- **`src/cli.ts`** - CLI entry point. Parses args with minimist, supports `list` (alias `ls`), `set`, `randomize`, `reset`, `normalize`, `lookup`, `vendors`, `version`, `help` commands. Supports `--wifi`, `--local`, `--vendor=<name>`, `--prefer-ifconfig`, `--format=json`, `--dry-run`/`-n`, `--verbose`/`-v`, `--quiet`/`-q`, `--timeout=<ms>`, `--version`. Exit codes: `0` success, `1` error, `2` dry-run would fail.
 
 - **`src/oui.ts`** - OUI (Organizationally Unique Identifier) vendor database module:
   - `lookup(mac)` - Look up vendor by MAC address or OUI prefix
@@ -63,7 +72,9 @@ TypeScript source lives in `src/`, built output goes to `dist/`.
 
 - **`src/types.ts`** - Shared type definitions: `NetworkInterface`, `AsyncOptions`, `RandomFunction`, `Platform`
 
-- **`scripts/mac-randomize.sh`** - Standalone macOS install script that clones, builds, and runs spoof to randomize a MAC address (installs Homebrew/Node.js if needed)
+- **`scripts/mac-randomize.sh`** - Standalone macOS install script that clones, builds, and runs spoof to randomize a MAC address (installs Homebrew/Node.js if needed). This is the script invoked by the README's Quick Start one-liner (`curl -fsSL .../scripts/mac-randomize.sh | bash`).
+
+- **`scripts/update-oui.ts`** - Regenerates `src/data/oui.json` from IEEE's OUI registry (run via `yarn update-oui`).
 
 ### Build Process
 
@@ -79,3 +90,47 @@ The code uses `process.platform` to branch between:
 ### Code Style
 
 Uses [Oxlint](https://oxc.rs/docs/guide/usage/linter) for fast linting and TypeScript for type checking. No semicolons, 2-space indentation, single quotes. ESM module format (`"type": "module"` in package.json).
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **spoof** (488 symbols, 873 relationships, 39 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/spoof/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/spoof/clusters` | All functional areas |
+| `gitnexus://repo/spoof/processes` | All execution flows |
+| `gitnexus://repo/spoof/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->
