@@ -23,10 +23,10 @@ function loadFixture(platform: string, filename: string): string {
 
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
-  const mockExecFileSync = (cmd: string, args?: string[]) => {
+  const mockExecFileSync = vi.fn((cmd: string, args?: string[]) => {
     const fullCmd = args ? [cmd, ...args].join(' ') : cmd
     return mockExecSync(fullCmd)
-  }
+  })
   const mock = {
     execSync: mockExecSync,
     execFileSync: mockExecFileSync,
@@ -312,7 +312,7 @@ describe('findInterfacesWin32', () => {
       if (cmd === 'ipconfig /all') {
         return Buffer.from(ipconfigOutput)
       }
-      if (cmd === 'getmac /v /fo csv') {
+      if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) {
         return Buffer.from(getmacOutput)
       }
       return Buffer.from('')
@@ -336,6 +336,11 @@ describe('findInterfacesWin32', () => {
     const wifi = interfaces.find(i => i.device === 'Wi-Fi')
     expect(wifi).toBeDefined()
     expect(wifi?.address).toBe('AA:BB:CC:DD:EE:FF')
+
+    expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
+    expect(mockExecSync).toHaveBeenCalledWith(
+      expect.stringMatching(/\\System32\\getmac\.exe \/v \/fo csv$/)
+    )
   })
 
   it('filters by target', async () => {
@@ -344,7 +349,7 @@ describe('findInterfacesWin32', () => {
 
     const mockExecSync = vi.fn((cmd: string) => {
       if (cmd === 'ipconfig /all') return Buffer.from(ipconfigOutput)
-      if (cmd === 'getmac /v /fo csv') return Buffer.from(getmacOutput)
+      if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
       return Buffer.from('')
     })
 
@@ -357,6 +362,8 @@ describe('findInterfacesWin32', () => {
     const byDevice = spoof.findInterfaces(['wi-fi'])
     expect(byDevice.length).toBe(1)
     expect(byDevice[0].device).toBe('Wi-Fi')
+
+    expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
   })
 })
 
