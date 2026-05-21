@@ -197,6 +197,11 @@ describe('searchVendors()', () => {
       expect(resultsLower.length).toBe(resultsUpper.length)
       expect(resultsLower[0].vendor).toBe(resultsUpper[0].vendor)
     })
+
+    it('rejects excessively long queries', () => {
+      const results = searchVendors('z'.repeat(129))
+      expect(results).toEqual([])
+    })
   })
 
   describe('limit parameter', () => {
