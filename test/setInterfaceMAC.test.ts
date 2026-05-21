@@ -224,6 +224,35 @@ describe('setInterfaceMAC darwin', () => {
 
     expect(() => spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')).toThrow('Unable to change MAC address')
   })
+
+  it('uses a sanitized PATH when invoking privileged system tools', async () => {
+    const execFileSync = vi.fn(() => Buffer.from(''))
+    const mock = {
+      execSync: vi.fn(),
+      execFileSync,
+      exec: vi.fn(),
+      execFile: vi.fn(),
+      spawn: vi.fn(),
+      spawnSync: vi.fn(),
+      fork: vi.fn()
+    }
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({ default: mock, ...mock }))
+
+    const spoof = await import('../src/index.ts')
+    spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')
+
+    expect(execFileSync).toHaveBeenCalledWith(
+      'ifconfig',
+      ['en0', 'ether', '00:11:22:33:44:55'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PATH: '/usr/sbin:/usr/bin:/sbin:/bin'
+        })
+      })
+    )
+  })
 })
 
 // =============================================================================
