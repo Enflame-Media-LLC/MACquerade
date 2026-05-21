@@ -15,4 +15,9 @@ describe('scripts/mac-randomize.sh', () => {
     expect(interfaceParsingBlock).not.toContain('eval "$(')
     expect(interfaceParsingBlock).not.toMatch(/\beval\b/)
   })
+
+  it('does not globally redirect stdin away from the script source', () => {
+    expect(script).not.toContain('exec < /dev/tty')
+    expect(script).toContain('stty -g < /dev/tty')
+  })
 })

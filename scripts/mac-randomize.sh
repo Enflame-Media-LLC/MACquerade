@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-# Reconnect stdin to the terminal when run via pipe (e.g., curl | bash).
-# Bash has already buffered the full script from the pipe by this point.
-if [ ! -t 0 ]; then
-  exec < /dev/tty
-fi
-
 echo "=== Spoof MAC Randomizer for macOS ==="
 echo ""
 
@@ -24,7 +18,7 @@ cleanup() {
   # Restore cursor visibility
   printf '\033[?25h' 2>/dev/null || true
   # Restore terminal settings if saved
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
+  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" < /dev/tty 2>/dev/null || true
   # Clean up temp directory
   [ -n "$SPOOF_DIR" ] && rm -rf "$SPOOF_DIR" 2>/dev/null || true
   # Clean up temporary interface data
@@ -239,7 +233,7 @@ echo "  ↑/↓ navigate  ·  Space select  ·  Enter confirm  ·  Esc/q cancel"
 echo ""
 
 # Save terminal settings and switch to raw mode
-SAVED_TTY=$(stty -g 2>/dev/null) || SAVED_TTY=""
+SAVED_TTY=$(stty -g < /dev/tty 2>/dev/null) || SAVED_TTY=""
 printf '\033[?25l'  # Hide cursor
 
 # First draw
