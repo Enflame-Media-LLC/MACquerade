@@ -11,12 +11,12 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const dirnamePath = path.dirname(fileURLToPath(import.meta.url))
 
 // Helper to load fixture files
 function loadFixture(platform: string, filename: string): string {
   return fs.readFileSync(
-    path.join(__dirname, 'fixtures', platform, filename),
+    path.join(dirnamePath, 'fixtures', platform, filename),
     'utf8'
   )
 }

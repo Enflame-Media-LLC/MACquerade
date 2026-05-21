@@ -224,6 +224,51 @@ describe('setInterfaceMAC darwin', () => {
 
     expect(() => spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')).toThrow('Unable to change MAC address')
   })
+
+  it('uses a trusted PATH for privileged async commands', async () => {
+    const execFileCalls: Array<{ options: { env?: NodeJS.ProcessEnv } }> = []
+
+    const execFile = vi.fn((
+      _cmd: string,
+      _args: string[],
+      options: { env?: NodeJS.ProcessEnv },
+      callback: (err: Error | null, stdout: string, stderr: string) => void
+    ) => {
+      execFileCalls.push({ options })
+      callback(null, '', '')
+    })
+
+    const exec = vi.fn()
+    const execSync = vi.fn(() => Buffer.from(''))
+    const execFileSync = vi.fn()
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({
+      default: {
+        exec,
+        execFile,
+        execSync,
+        execFileSync
+      },
+      exec,
+      execFile,
+      execSync,
+      execFileSync
+    }))
+
+    const originalPath = process.env.PATH
+    process.env.PATH = '/tmp/attacker-controlled'
+
+    try {
+      const spoof = await import('../src/index.ts')
+      await spoof.setInterfaceMACAsync('en1', '00:11:22:33:44:55', 'Wi-Fi')
+    } finally {
+      process.env.PATH = originalPath
+    }
+
+    expect(execFileCalls.length).toBeGreaterThan(0)
+    expect(execFileCalls.every(call => call.options.env?.PATH === '/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
+  })
 })
 
 // =============================================================================

@@ -12,6 +12,9 @@ const execFileAsync = promisify(cp.execFile)
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
 
+// Restrict privileged child process lookup to trusted system directories.
+const SAFE_EXEC_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
 
@@ -31,10 +34,29 @@ function warnDeprecated(fnName: string): void {
 /**
  * Create exec options with timeout and abort signal support
  */
-function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal } {
+function createSafeEnv(): NodeJS.ProcessEnv {
+  if (process.platform === 'win32') {
+    return process.env
+  }
+
+  return {
+    ...process.env,
+    PATH: SAFE_EXEC_PATH
+  }
+}
+
+function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal; env: NodeJS.ProcessEnv } {
   return {
     timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    signal: options.signal
+    signal: options.signal,
+    env: createSafeEnv()
+  }
+}
+
+function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options: T = {} as T): T & { env: NodeJS.ProcessEnv } {
+  return {
+    ...options,
+    env: createSafeEnv()
   }
 }
 
@@ -64,7 +86,7 @@ let preferIfconfig = false
  */
 function hasIpCommand(): boolean {
   try {
-    cp.execSync('which ip', { stdio: 'pipe' })
+    cp.execSync('which ip', createSyncExecOptions({ stdio: 'pipe' }))
     return true
   } catch {
     return false
@@ -86,12 +108,12 @@ async function hasIpCommandAsync(options: AsyncOptions = {}): Promise<boolean> {
 }
 
 // Lazy detection of ip command availability (Linux only)
-let _ipCommandAvailable: boolean | null = null
+let ipCommandAvailableSync: boolean | null = null
 function getIpCommandAvailable(): boolean {
-  if (_ipCommandAvailable === null) {
-    _ipCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
+  if (ipCommandAvailableSync === null) {
+    ipCommandAvailableSync = process.platform === 'linux' ? hasIpCommand() : false
   }
-  return _ipCommandAvailable
+  return ipCommandAvailableSync
 }
 
 // Cache for async ip command check
@@ -132,7 +154,7 @@ function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
   // - the device associated with this port, if any,
   // - the MAC address, if any, otherwise 'N/A'
 
-  let output = cp.execSync('networksetup -listallhardwareports').toString()
+  let output = cp.execSync('networksetup -listallhardwareports', createSyncExecOptions()).toString()
 
   const details: string[] = []
   while (true) {
@@ -196,7 +218,7 @@ function findInterfacesLinux(targets: string[]): NetworkInterface[] {
  * This is the modern approach for Linux distributions that don't include net-tools.
  */
 function findInterfacesLinuxIp(targets: string[]): NetworkInterface[] {
-  const output = cp.execSync('ip link show', { stdio: 'pipe' }).toString()
+  const output = cp.execSync('ip link show', createSyncExecOptions({ stdio: 'pipe' })).toString()
   const lines = output.split('\n')
 
   const interfaces: NetworkInterface[] = []
@@ -284,7 +306,7 @@ function getInterfaceMACLinux(device: string): string | null {
   // Try ip command first if available
   if (!preferIfconfig) {
     try {
-      const output = cp.execFileSync('ip', ['link', 'show', device], { stdio: 'pipe' }).toString()
+      const output = cp.execFileSync('ip', ['link', 'show', device], createSyncExecOptions({ stdio: 'pipe' })).toString()
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
       const mac = macMatch ? normalize(macMatch[1]) ?? null : null
       if (mac) return mac
@@ -294,7 +316,7 @@ function getInterfaceMACLinux(device: string): string | null {
   }
   // Fallback to ifconfig
   try {
-    const output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
+    const output = cp.execFileSync('ifconfig', [device], createSyncExecOptions({ stdio: 'pipe' })).toString()
     const address = MAC_ADDRESS_RE.exec(output)
     return address ? normalize(address[0]) ?? null : null
   } catch {
@@ -307,7 +329,7 @@ function getInterfaceMACLinux(device: string): string | null {
  */
 function getInterfaceMACWin32(device: string): string | null {
   try {
-    const output = cp.execSync('getmac /v /fo csv', { stdio: 'pipe' }).toString()
+    const output = cp.execSync('getmac /v /fo csv', createSyncExecOptions({ stdio: 'pipe' })).toString()
     const lines = output.trim().split('\n')
 
     // Skip header line, parse data lines
@@ -377,7 +399,12 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   // - the adapter name/device associated with this, if any,
   // - the MAC address, if any
 
-  let output = cp.execSync('ifconfig', { stdio: 'pipe' }).toString()
+  let output: string
+  try {
+    output = cp.execSync('ifconfig', createSyncExecOptions({ stdio: 'pipe' })).toString()
+  } catch {
+    return []
+  }
 
   const details: string[] = []
   while (true) {
@@ -432,7 +459,7 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
 }
 
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
-  const output = cp.execSync('ipconfig /all', { stdio: 'pipe' }).toString()
+  const output = cp.execSync('ipconfig /all', createSyncExecOptions({ stdio: 'pipe' })).toString()
 
   const interfaces: NetworkInterface[] = []
   const lines = output.split('\n')
@@ -527,7 +554,7 @@ function getInterfaceMAC(device: string): string | null {
   } else if (process.platform === 'darwin') {
     let output: string
     try {
-      output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
+      output = cp.execFileSync('ifconfig', [device], createSyncExecOptions({ stdio: 'pipe' })).toString()
     } catch {
       return null
     }
@@ -563,8 +590,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
       // Turn off the device, assuming it's an airport device, to disassociate from any
       // networks and then turn it back on so we can change the MAC.
       try {
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'], createSyncExecOptions())
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'], createSyncExecOptions())
       } catch (err) {
         throw new Error('Unable to power cycle wifi device', { cause: err })
       }
@@ -572,7 +599,7 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
 
     // Change the MAC.
     try {
-      cp.execFileSync('ifconfig', [device, 'ether', mac])
+      cp.execFileSync('ifconfig', [device, 'ether', mac], createSyncExecOptions())
     } catch (err) {
       throw new Error('Unable to change MAC address', { cause: err })
     }
@@ -580,8 +607,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
     // Restart airport so it will associate with known networks (if any)
     if (isWirelessPort) {
       try {
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'], createSyncExecOptions())
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'], createSyncExecOptions())
       } catch (err) {
         throw new Error('Unable to restart wifi device', { cause: err })
       }
@@ -592,17 +619,17 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
     if (!preferIfconfig && getIpCommandAvailable()) {
       // Use ip command (iproute2 - modern)
       try {
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'down'])
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'address', mac])
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'up'])
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'down'], createSyncExecOptions())
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'address', mac], createSyncExecOptions())
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'up'], createSyncExecOptions())
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
     } else {
       // Use ifconfig command (net-tools - legacy)
       try {
-        cp.execFileSync('ifconfig', [device, 'down', 'hw', 'ether', mac])
-        cp.execFileSync('ifconfig', [device, 'up'])
+        cp.execFileSync('ifconfig', [device, 'down', 'hw', 'ether', mac], createSyncExecOptions())
+        cp.execFileSync('ifconfig', [device, 'up'], createSyncExecOptions())
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
@@ -881,9 +908,13 @@ async function findInterfacesLinuxIpAsync(targets: string[], options: AsyncOptio
 }
 
 async function findInterfacesLinuxIfconfigAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('ifconfig', createExecOptions(options))
-  let output = stdout
+  let output: string
+  try {
+    const { stdout } = await execAsync('ifconfig', createExecOptions(options))
+    output = stdout
+  } catch {
+    return []
+  }
 
   const details: string[] = []
   while (true) {

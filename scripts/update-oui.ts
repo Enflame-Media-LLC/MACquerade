@@ -12,10 +12,10 @@ import { writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const dirnamePath = dirname(fileURLToPath(import.meta.url))
 
 const IEEE_OUI_URL = 'https://standards-oui.ieee.org/oui/oui.csv'
-const OUTPUT_PATH = resolve(__dirname, '../src/data/oui.json')
+const OUTPUT_PATH = resolve(dirnamePath, '../src/data/oui.json')
 
 // Top vendors to prioritize (most common device manufacturers)
 const TOP_VENDORS = [
