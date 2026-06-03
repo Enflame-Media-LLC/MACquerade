@@ -76,7 +76,7 @@ function levenshteinDistance(a: string, b: string, maxDistance: number): number 
     return maxDistance + 1
   }
 
-  let previous = Array.from({ length: a.length + 1 }, (_value, index) => index)
+  let previous = Array.from({ length: a.length + 1 }, function(_value, index) { return index })
 
   for (let i = 1; i <= b.length; i++) {
     const current = [i]
