@@ -61,7 +61,7 @@ jobs:
 
       - name: Install ESLint
         run: |
-          npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.46.3 typescript@5.9.3 @microsoft/eslint-formatter-sarif@3.1.0
+          npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.58.1 typescript@6.0.3 @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Write ESLint config
         run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
