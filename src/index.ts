@@ -1,6 +1,5 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
-import path from 'node:path'
 import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
 import Winreg from 'winreg'
@@ -51,14 +50,7 @@ function createExecOptions(options: AsyncOptions = {}): { timeout: number; signa
  * in elevated processes so a planted executable cannot be selected instead.
  */
 function getWindowsSystem32Executable(executable: string): string {
-  const windowsDir = process.env.SystemRoot ?? process.env.windir ?? DEFAULT_WINDOWS_DIR
-  const normalizedWindowsDir = path.win32.normalize(windowsDir)
-
-  if (!path.win32.isAbsolute(normalizedWindowsDir)) {
-    return path.win32.join(DEFAULT_WINDOWS_DIR, WINDOWS_SYSTEM32_DIR, executable)
-  }
-
-  return path.win32.join(normalizedWindowsDir, WINDOWS_SYSTEM32_DIR, executable)
+  return [DEFAULT_WINDOWS_DIR, WINDOWS_SYSTEM32_DIR, executable].join(String.fromCharCode(92))
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7
