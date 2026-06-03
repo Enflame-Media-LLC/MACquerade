@@ -32,11 +32,32 @@ jobs:
       - name: Install ESLint
         run: npm install --no-save --ignore-scripts eslint@8.10.0 @typescript-eslint/parser@5.62.0
 
+      - name: Write ESLint config
+        run: |
+          cat > eslint-security.json <<'EOF'
+          {
+            "env": {
+              "node": true,
+              "es2022": true
+            },
+            "parser": "@typescript-eslint/parser",
+            "parserOptions": {
+              "ecmaVersion": "latest",
+              "sourceType": "module"
+            },
+            "rules": {
+              "eqeqeq": "warn",
+              "no-debugger": "error",
+              "no-undef": "error",
+              "no-unused-vars": "warn"
+            }
+          }
+          EOF
+
       - name: Run ESLint
         run: npx eslint .
           --no-eslintrc
-          --parser @typescript-eslint/parser
-          --parser-options '{"ecmaVersion":"latest","sourceType":"module"}'
+          --config eslint-security.json
           --ext .js,.jsx,.ts,.tsx
 
   eslint-sarif:
@@ -54,13 +75,34 @@ jobs:
       - name: Install ESLint
         run: npm install --no-save --ignore-scripts eslint@8.10.0 @typescript-eslint/parser@5.62.0 @microsoft/eslint-formatter-sarif@3.1.0
 
+      - name: Write ESLint config
+        run: |
+          cat > eslint-security.json <<'EOF'
+          {
+            "env": {
+              "node": true,
+              "es2022": true
+            },
+            "parser": "@typescript-eslint/parser",
+            "parserOptions": {
+              "ecmaVersion": "latest",
+              "sourceType": "module"
+            },
+            "rules": {
+              "eqeqeq": "warn",
+              "no-debugger": "error",
+              "no-undef": "error",
+              "no-unused-vars": "warn"
+            }
+          }
+          EOF
+
       - name: Run ESLint
         env:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
         run: npx eslint .
           --no-eslintrc
-          --parser @typescript-eslint/parser
-          --parser-options '{"ecmaVersion":"latest","sourceType":"module"}'
+          --config eslint-security.json
           --ext .js,.jsx,.ts,.tsx
           --format @microsoft/eslint-formatter-sarif
           --output-file eslint-results.sarif
