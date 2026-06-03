@@ -36,14 +36,20 @@ jobs:
             "sourceType": "module"
           },
           "globals": {
-            "fetch": "readonly",
-            "NodeJS": "readonly"
+            "fetch": "readonly"
           },
           "rules": {
             "eqeqeq": "error",
-            "no-debugger": "error",
-            "no-undef": "error"
-          }
+            "no-debugger": "error"
+          },
+          "overrides": [
+            {
+              "files": ["*.js", "*.jsx"],
+              "rules": {
+                "no-undef": "error"
+              }
+            }
+          ]
         }
     permissions:
       contents: read
@@ -55,7 +61,7 @@ jobs:
 
       - name: Install ESLint
         run: |
-          npm install --no-save --ignore-scripts eslint@8.10.0 @typescript-eslint/parser@5.62.0 @microsoft/eslint-formatter-sarif@3.1.0
+          npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.46.3 @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Write ESLint config
         run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
