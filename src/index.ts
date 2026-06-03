@@ -14,7 +14,7 @@ const DEFAULT_TIMEOUT = 30000
 
 // Restrict command lookup to trusted system directories so privileged callers
 // are not exposed to attacker-controlled PATH entries.
-const TRUSTED_POSIX_SYSTEM_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+const TRUSTED_POSIX_SYSTEM_PATH = '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 const TRUSTED_WINDOWS_SYSTEM_PATH = 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem'
 
 // Deprecation warning tracking (show once per function)
@@ -36,18 +36,21 @@ function warnDeprecated(fnName: string): void {
 /**
  * Create exec options with timeout, abort signal, and safe PATH support.
  */
-function createCommandEnv(): NodeJS.ProcessEnv {
+function createCommandEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const trustedPath = process.platform === 'win32'
-    ? process.env.SystemRoot
-      ? `${process.env.SystemRoot}\\System32;${process.env.SystemRoot};${process.env.SystemRoot}\\System32\\Wbem`
-      : TRUSTED_WINDOWS_SYSTEM_PATH
+    ? TRUSTED_WINDOWS_SYSTEM_PATH
     : TRUSTED_POSIX_SYSTEM_PATH
 
   return {
-    ...process.env,
+    ...baseEnv,
     PATH: trustedPath,
     Path: trustedPath
   }
+}
+
+function isMissingCommandError(err: unknown): boolean {
+  const e = err as NodeJS.ErrnoException & { status?: number }
+  return e.code === 'ENOENT' || e.status === 127
 }
 
 function createExecOptions(options: AsyncOptions = {}): ExecFileOptionsWithStringEncoding {
@@ -66,8 +69,9 @@ function createExecOptions(options: AsyncOptions = {}): ExecFileOptionsWithStrin
 
 function createExecFileSyncOptions(options: ExecFileSyncOptions = {}): ExecFileSyncOptions {
   return {
+    timeout: DEFAULT_TIMEOUT,
     ...options,
-    env: createCommandEnv()
+    env: createCommandEnv(options.env)
   }
 }
 
@@ -222,8 +226,11 @@ function findInterfacesLinux(targets: string[]): NetworkInterface[] {
       return findInterfacesLinuxIp(targets)
     }
     return findInterfacesLinuxIfconfig(targets)
-  } catch {
-    return []
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
 }
 
@@ -863,8 +870,11 @@ async function findInterfacesLinuxAsync(targets: string[], options: AsyncOptions
       return await findInterfacesLinuxIpAsync(targets, options)
     }
     return await findInterfacesLinuxIfconfigAsync(targets, options)
-  } catch {
-    return []
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
 }
 
