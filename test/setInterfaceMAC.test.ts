@@ -734,13 +734,26 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
     vi.doMock('winreg', () => ({ default: MockWinreg }))
 
     const originalPath = process.env.PATH
+    const originalPaTh = process.env.PaTh
+    const originalComSpec = process.env.ComSpec
+    const originalCoMsPeC = process.env.CoMsPeC
     process.env.PATH = 'C:\\Users\\attacker'
+    process.env.PaTh = 'C:\\Users\\attacker\\bin'
+    process.env.ComSpec = 'C:\\Users\\attacker\\cmd.exe'
+    process.env.CoMsPeC = 'C:\\Users\\attacker\\shell.exe'
 
     try {
       const spoof = await import('../src/index.ts')
       await spoof.setInterfaceMACAsync('Wi-Fi', '00:11:22:33:44:55')
     } finally {
-      process.env.PATH = originalPath
+      if (originalPath === undefined) delete process.env.PATH
+      else process.env.PATH = originalPath
+      if (originalPaTh === undefined) delete process.env.PaTh
+      else process.env.PaTh = originalPaTh
+      if (originalComSpec === undefined) delete process.env.ComSpec
+      else process.env.ComSpec = originalComSpec
+      if (originalCoMsPeC === undefined) delete process.env.CoMsPeC
+      else process.env.CoMsPeC = originalCoMsPeC
     }
 
     expect(setCalls).toEqual([
@@ -756,5 +769,8 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
     ])
     expect(netshCalls.every(call => call.env?.Path === 'C:\\Windows\\System32;C:\\Windows')).toBe(true)
     expect(netshCalls.every(call => call.env?.PATH === undefined)).toBe(true)
+    expect(netshCalls.every(call => call.env?.PaTh === undefined)).toBe(true)
+    expect(netshCalls.every(call => call.env?.ComSpec === 'C:\\Windows\\System32\\cmd.exe')).toBe(true)
+    expect(netshCalls.every(call => call.env?.CoMsPeC === undefined)).toBe(true)
   })
 })
