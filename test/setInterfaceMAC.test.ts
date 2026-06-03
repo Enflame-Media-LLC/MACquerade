@@ -267,7 +267,60 @@ describe('setInterfaceMAC darwin', () => {
     }
 
     expect(execFileCalls.length).toBeGreaterThan(0)
-    expect(execFileCalls.every(call => call.options.env?.PATH === '/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
+    expect(execFileCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
+  })
+
+
+  it('preserves env and applies default timeout for privileged sync commands', async () => {
+    const execFileSyncCalls: Array<{ options: { env?: NodeJS.ProcessEnv; timeout?: number } }> = []
+
+    const exec = vi.fn()
+    const execSync = vi.fn(() => Buffer.from(''))
+    const execFile = vi.fn()
+    const execFileSync = vi.fn((
+      _cmd: string,
+      _args: string[],
+      options: { env?: NodeJS.ProcessEnv; timeout?: number }
+    ) => {
+      execFileSyncCalls.push({ options })
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({
+      default: {
+        exec,
+        execFile,
+        execSync,
+        execFileSync
+      },
+      exec,
+      execFile,
+      execSync,
+      execFileSync
+    }))
+
+    const originalPath = process.env.PATH
+    const originalMarker = process.env.SPOOF_TEST_MARKER
+    process.env.PATH = '/tmp/attacker-controlled'
+    process.env.SPOOF_TEST_MARKER = 'preserve-me'
+
+    try {
+      const spoof = await import('../src/index.ts')
+      spoof.setInterfaceMAC('en1', '00:11:22:33:44:55', 'Wi-Fi')
+    } finally {
+      process.env.PATH = originalPath
+      if (originalMarker === undefined) {
+        delete process.env.SPOOF_TEST_MARKER
+      } else {
+        process.env.SPOOF_TEST_MARKER = originalMarker
+      }
+    }
+
+    expect(execFileSyncCalls.length).toBeGreaterThan(0)
+    expect(execFileSyncCalls.every(call => call.options.timeout === 30000)).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.SPOOF_TEST_MARKER === 'preserve-me')).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
   })
 })
 

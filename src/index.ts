@@ -13,7 +13,7 @@ const execFileAsync = promisify(cp.execFile)
 const DEFAULT_TIMEOUT = 30000
 
 // Restrict privileged child process lookup to trusted system directories.
-const SAFE_EXEC_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
+const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -34,13 +34,13 @@ function warnDeprecated(fnName: string): void {
 /**
  * Create exec options with timeout and abort signal support
  */
-function createSafeEnv(): NodeJS.ProcessEnv {
+function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   if (process.platform === 'win32') {
-    return process.env
+    return { ...baseEnv }
   }
 
   return {
-    ...process.env,
+    ...baseEnv,
     PATH: SAFE_EXEC_PATH
   }
 }
@@ -53,11 +53,12 @@ function createExecOptions(options: AsyncOptions = {}): { timeout: number; signa
   }
 }
 
-function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options: T = {} as T): T & { env: NodeJS.ProcessEnv } {
+function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options: T = {} as T): T & { env: NodeJS.ProcessEnv; timeout: number } {
   return {
+    timeout: DEFAULT_TIMEOUT,
     ...options,
-    env: createSafeEnv()
-  }
+    env: createSafeEnv(options.env)
+  } as T & { env: NodeJS.ProcessEnv; timeout: number }
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7
