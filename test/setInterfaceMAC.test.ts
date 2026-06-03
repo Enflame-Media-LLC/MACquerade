@@ -302,8 +302,10 @@ describe('setInterfaceMAC darwin', () => {
 
     const originalPath = process.env.PATH
     const originalMarker = process.env.SPOOF_TEST_MARKER
+    const originalLdPreload = process.env.LD_PRELOAD
     process.env.PATH = '/tmp/attacker-controlled'
     process.env.SPOOF_TEST_MARKER = 'preserve-me'
+    process.env.LD_PRELOAD = '/tmp/evil.so'
 
     try {
       const spoof = await import('../src/index.ts')
@@ -315,11 +317,17 @@ describe('setInterfaceMAC darwin', () => {
       } else {
         process.env.SPOOF_TEST_MARKER = originalMarker
       }
+      if (originalLdPreload === undefined) {
+        delete process.env.LD_PRELOAD
+      } else {
+        process.env.LD_PRELOAD = originalLdPreload
+      }
     }
 
     expect(execFileSyncCalls.length).toBeGreaterThan(0)
     expect(execFileSyncCalls.every(call => call.options.timeout === 30000)).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.SPOOF_TEST_MARKER === 'preserve-me')).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.LD_PRELOAD === undefined)).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
   })
 })

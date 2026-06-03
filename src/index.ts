@@ -14,6 +14,16 @@ const DEFAULT_TIMEOUT = 30000
 
 // Restrict privileged child process lookup to trusted system directories.
 const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+const DANGEROUS_EXEC_ENV_KEYS = [
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'NODE_OPTIONS',
+  'BASH_ENV',
+  'ENV'
+]
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -35,14 +45,18 @@ function warnDeprecated(fnName: string): void {
  * Create exec options with timeout and abort signal support
  */
 function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...baseEnv }
+
   if (process.platform === 'win32') {
-    return { ...baseEnv }
+    return env
   }
 
-  return {
-    ...baseEnv,
-    PATH: SAFE_EXEC_PATH
+  for (const key of DANGEROUS_EXEC_ENV_KEYS) {
+    delete env[key]
   }
+  env.PATH = SAFE_EXEC_PATH
+
+  return env
 }
 
 function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal; env: NodeJS.ProcessEnv } {
@@ -63,7 +77,8 @@ function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOpt
 
 function isMissingCommandError(error: unknown): boolean {
   const err = error as NodeJS.ErrnoException & { status?: number }
-  return err.code === 'ENOENT' || err.status === 127
+  const code = err.code as unknown
+  return code === 'ENOENT' || code === 127 || err.status === 127
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7

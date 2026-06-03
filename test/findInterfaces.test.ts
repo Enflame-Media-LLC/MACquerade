@@ -361,6 +361,41 @@ describe('findInterfacesLinuxIfconfig', () => {
 
     await expect(spoof.findInterfacesAsync()).rejects.toThrow('ifconfig timed out')
   })
+
+  it('returns an empty list when async legacy ifconfig is missing with numeric code', async () => {
+    const exec = vi.fn((cmd: string, _options: unknown, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+      if (cmd === 'which ip') {
+        const err = new Error('Command failed') as Error & { status?: number }
+        err.status = 1
+        callback(err, '', '')
+        return
+      }
+      if (cmd === 'ifconfig') {
+        const err = new Error('ifconfig not found') as Error & { code?: number }
+        err.code = 127
+        callback(err, '', '')
+        return
+      }
+      callback(null, '', '')
+    })
+
+    const mock = {
+      exec,
+      execSync: vi.fn(),
+      execFile: vi.fn(),
+      execFileSync: vi.fn(),
+      spawn: vi.fn(),
+      spawnSync: vi.fn(),
+      fork: vi.fn()
+    }
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({ default: mock, ...mock }))
+
+    const spoof = await import('../src/index.ts')
+
+    await expect(spoof.findInterfacesAsync()).resolves.toEqual([])
+  })
 })
 
 // =============================================================================
