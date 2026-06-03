@@ -1,5 +1,6 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
+import path from 'path'
 import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
 import Winreg from 'winreg'
@@ -11,6 +12,9 @@ const execFileAsync = promisify(cp.execFile)
 
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
+const DEFAULT_WINDOWS_DIR = 'C:\\Windows'
+const WINDOWS_SYSTEM32_DIR = 'System32'
+const GETMAC_EXE = 'getmac.exe'
 
 // Restrict privileged child process lookup to trusted system directories.
 const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
@@ -91,6 +95,17 @@ function isMissingCommandError(error: unknown): boolean {
   const err = error as NodeJS.ErrnoException & { status?: number }
   const code = err.code as unknown
   return code === 'ENOENT' || code === 127 || err.status === 127
+}
+
+/**
+ * Build the absolute path to a Windows System32 executable.
+ *
+ * Windows searches the current working directory and PATH for bare command
+ * names. Use an absolute System32 path for built-in Windows tools that may run
+ * in elevated processes so a planted executable cannot be selected instead.
+ */
+function getWindowsSystem32Executable(executable: string): string {
+  return path.win32.join(DEFAULT_WINDOWS_DIR, WINDOWS_SYSTEM32_DIR, executable)
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7
@@ -362,7 +377,7 @@ function getInterfaceMACLinux(device: string): string | null {
  */
 function getInterfaceMACWin32(device: string): string | null {
   try {
-    const output = cp.execSync('getmac /v /fo csv', createSyncExecOptions({ stdio: 'pipe' })).toString()
+    const output = cp.execFileSync(getWindowsSystem32Executable(GETMAC_EXE), ['/v', '/fo', 'csv'], createSyncExecOptions({ stdio: 'pipe' })).toString()
     const lines = output.trim().split('\n')
 
     // Skip header line, parse data lines
@@ -1118,8 +1133,11 @@ async function getInterfaceMACLinuxAsync(device: string, options: AsyncOptions =
  */
 async function getInterfaceMACWin32Async(device: string, options: AsyncOptions = {}): Promise<string | null> {
   try {
-    // Safe: hardcoded command, no user input
-    const { stdout } = await execAsync('getmac /v /fo csv', createExecOptions(options))
+    const { stdout } = await execFileAsync(
+      getWindowsSystem32Executable(GETMAC_EXE),
+      ['/v', '/fo', 'csv'],
+      createExecOptions(options)
+    )
     const lines = stdout.trim().split('\n')
 
     for (let i = 1; i < lines.length; i++) {

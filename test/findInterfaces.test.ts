@@ -23,15 +23,25 @@ function loadFixture(platform: string, filename: string): string {
 
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
-  const mockExecFileSync = (cmd: string, args?: string[]) => {
+  const mockExecFileSync = vi.fn((cmd: string, args?: string[]) => {
     const fullCmd = args ? [cmd, ...args].join(' ') : cmd
     return mockExecSync(fullCmd)
-  }
+  })
+  const mockExecFile = vi.fn((cmd: string, args?: string[], options?: unknown, callback?: (error: Error | null, stdout: Buffer, stderr: Buffer) => void) => {
+    const cb = typeof options === 'function' ? options : callback
+    try {
+      const fullCmd = args ? [cmd, ...args].join(' ') : cmd
+      cb?.(null, mockExecSync(fullCmd), Buffer.from(''))
+    } catch (err) {
+      cb?.(err as Error, Buffer.from(''), Buffer.from(''))
+    }
+    return {}
+  })
   const mock = {
     execSync: mockExecSync,
     execFileSync: mockExecFileSync,
     exec: vi.fn(),
-    execFile: vi.fn(),
+    execFile: mockExecFile,
     spawn: vi.fn(),
     spawnSync: vi.fn(),
     fork: vi.fn()
@@ -76,7 +86,8 @@ describe('findInterfacesDarwin', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
@@ -117,7 +128,8 @@ describe('findInterfacesDarwin', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
 
@@ -169,7 +181,8 @@ describe('findInterfacesLinuxIp', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
@@ -217,7 +230,8 @@ describe('findInterfacesLinuxIp', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
 
@@ -272,7 +286,8 @@ describe('findInterfacesLinuxIfconfig', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
@@ -424,14 +439,15 @@ describe('findInterfacesWin32', () => {
       if (cmd === 'ipconfig /all') {
         return Buffer.from(ipconfigOutput)
       }
-      if (cmd === 'getmac /v /fo csv') {
+      if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) {
         return Buffer.from(getmacOutput)
       }
       return Buffer.from('')
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
@@ -448,6 +464,20 @@ describe('findInterfacesWin32', () => {
     const wifi = interfaces.find(i => i.device === 'Wi-Fi')
     expect(wifi).toBeDefined()
     expect(wifi?.address).toBe('AA:BB:CC:DD:EE:FF')
+
+    expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
+    expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
+      ['C:', 'Windows', 'System32', 'getmac.exe'].join(String.fromCharCode(92)),
+      ['/v', '/fo', 'csv'],
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
+        })
+      })
+    )
   })
 
   it('filters by target', async () => {
@@ -456,12 +486,13 @@ describe('findInterfacesWin32', () => {
 
     const mockExecSync = vi.fn((cmd: string) => {
       if (cmd === 'ipconfig /all') return Buffer.from(ipconfigOutput)
-      if (cmd === 'getmac /v /fo csv') return Buffer.from(getmacOutput)
+      if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
       return Buffer.from('')
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
 
@@ -469,6 +500,20 @@ describe('findInterfacesWin32', () => {
     const byDevice = spoof.findInterfaces(['wi-fi'])
     expect(byDevice.length).toBe(1)
     expect(byDevice[0].device).toBe('Wi-Fi')
+
+    expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
+    expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
+      ['C:', 'Windows', 'System32', 'getmac.exe'].join(String.fromCharCode(92)),
+      ['/v', '/fo', 'csv'],
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
+        })
+      })
+    )
   })
 })
 
@@ -501,7 +546,8 @@ describe('findInterface', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
 
@@ -520,7 +566,8 @@ describe('findInterface', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
 
@@ -582,7 +629,8 @@ describe('getLinuxPortType', () => {
     })
 
     vi.resetModules()
-    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
 
     const spoof = await import('../src/index.ts')
     const interfaces = spoof.findInterfaces()
