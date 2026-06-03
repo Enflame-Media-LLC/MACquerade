@@ -26,6 +26,8 @@ permissions:
   security-events: write
   # Read commit contents
   contents: read
+  # Required by the OSV v2 reusable workflow SARIF upload path in private repositories.
+  actions: read
 
 jobs:
   scan-scheduled:
@@ -35,7 +37,6 @@ jobs:
       # Example of specifying custom arguments
       scan-args: |-
         -r
-        --skip-git
         ./
   scan-pr:
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
@@ -44,5 +45,4 @@ jobs:
       # Example of specifying custom arguments
       scan-args: |-
         -r
-        --skip-git
         ./
