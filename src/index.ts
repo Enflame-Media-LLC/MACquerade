@@ -14,8 +14,8 @@ const DEFAULT_TIMEOUT = 30000
 
 // Restrict privileged child process lookup to trusted system directories.
 const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-const SAFE_WINDOWS_EXEC_PATH = 'C:\\Windows\\System32;C:\\Windows'
-const SAFE_WINDOWS_COMSPEC = 'C:\\Windows\\System32\\cmd.exe'
+const DEFAULT_WINDOWS_ROOT = 'C:\\Windows'
+const SAFE_WINDOWS_ROOT_RE = /^[A-Za-z]:\\Windows$/i
 const DANGEROUS_EXEC_ENV_KEYS = [
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
@@ -46,6 +46,16 @@ function warnDeprecated(fnName: string): void {
 /**
  * Create exec options with timeout and abort signal support
  */
+function getSafeWindowsRoot(baseEnv: NodeJS.ProcessEnv): string {
+  const windowsRoot = baseEnv.SystemRoot ?? baseEnv.windir ?? baseEnv.WINDIR
+
+  if (windowsRoot !== undefined && SAFE_WINDOWS_ROOT_RE.test(windowsRoot)) {
+    return windowsRoot
+  }
+
+  return DEFAULT_WINDOWS_ROOT
+}
+
 function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env = { ...baseEnv }
 
@@ -56,8 +66,9 @@ function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.Process
         delete env[key]
       }
     }
-    env.Path = SAFE_WINDOWS_EXEC_PATH
-    env.ComSpec = SAFE_WINDOWS_COMSPEC
+    const windowsRoot = getSafeWindowsRoot(baseEnv)
+    env.Path = windowsRoot + '\\System32;' + windowsRoot
+    env.ComSpec = windowsRoot + '\\System32\\cmd.exe'
     return env
   }
 
