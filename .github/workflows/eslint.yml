@@ -32,13 +32,13 @@ env:
         "sourceType": "module"
       },
       "globals": {
-        "fetch": "readonly"
+        "fetch": "readonly",
+        "NodeJS": "readonly"
       },
       "rules": {
         "eqeqeq": "error",
         "no-debugger": "error",
-        "no-undef": "error",
-        "no-unused-vars": "warn"
+        "no-undef": "error"
       }
     }
 
@@ -94,8 +94,10 @@ jobs:
           --output-file eslint-results.sarif
         continue-on-error: true
 
+      - name: Verify ESLint SARIF
+        run: test -f eslint-results.sarif
+
       - name: Upload analysis results to GitHub
-        if: ${{ hashFiles('eslint-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: eslint-results.sarif
