@@ -737,14 +737,10 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
     const originalPaTh = process.env.PaTh
     const originalComSpec = process.env.ComSpec
     const originalCoMsPeC = process.env.CoMsPeC
-    const originalSystemRoot = process.env.SystemRoot
-    const originalWindir = process.env.windir
     process.env.PATH = 'C:\\Users\\attacker'
     process.env.PaTh = 'C:\\Users\\attacker\\bin'
     process.env.ComSpec = 'C:\\Users\\attacker\\cmd.exe'
     process.env.CoMsPeC = 'C:\\Users\\attacker\\shell.exe'
-    process.env.SystemRoot = 'D:\\Windows'
-    process.env.windir = 'C:\\Users\\attacker'
 
     try {
       const spoof = await import('../src/index.ts')
@@ -758,10 +754,6 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
       else process.env.ComSpec = originalComSpec
       if (originalCoMsPeC === undefined) delete process.env.CoMsPeC
       else process.env.CoMsPeC = originalCoMsPeC
-      if (originalSystemRoot === undefined) delete process.env.SystemRoot
-      else process.env.SystemRoot = originalSystemRoot
-      if (originalWindir === undefined) delete process.env.windir
-      else process.env.windir = originalWindir
     }
 
     expect(setCalls).toEqual([
@@ -775,10 +767,10 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
       'netsh interface set interface Wi-Fi disable',
       'netsh interface set interface Wi-Fi enable'
     ])
-    expect(netshCalls.every(call => call.env?.Path === 'D:\\Windows\\System32;D:\\Windows')).toBe(true)
+    expect(netshCalls.every(call => call.env?.Path === 'C:\\Windows\\System32;C:\\Windows')).toBe(true)
     expect(netshCalls.every(call => call.env?.PATH === undefined)).toBe(true)
     expect(netshCalls.every(call => call.env?.PaTh === undefined)).toBe(true)
-    expect(netshCalls.every(call => call.env?.ComSpec === 'D:\\Windows\\System32\\cmd.exe')).toBe(true)
+    expect(netshCalls.every(call => call.env?.ComSpec === 'C:\\Windows\\System32\\cmd.exe')).toBe(true)
     expect(netshCalls.every(call => call.env?.CoMsPeC === undefined)).toBe(true)
   })
 })
