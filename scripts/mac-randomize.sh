@@ -92,8 +92,13 @@ if ! command -v yarn &> /dev/null; then
 fi
 
 # Clone and build spoof
-SPOOF_DIR="${TMPDIR:-/tmp}"
-SPOOF_DIR="${SPOOF_DIR%/}/spoof-$$"
+TEMP_PARENT="${TMPDIR:-/tmp}"
+if ! SPOOF_DIR=$(mktemp -d "${TEMP_PARENT%/}/spoof.XXXXXX"); then
+  echo ""
+  echo "Error: Failed to create a secure temporary directory."
+  exit 1
+fi
+chmod 700 "$SPOOF_DIR"
 echo "Downloading spoof..."
 if ! git clone --depth 1 https://github.com/TheJACKedViking/spoof.git "$SPOOF_DIR"; then
   echo ""
