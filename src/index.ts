@@ -109,12 +109,12 @@ async function hasIpCommandAsync(options: AsyncOptions = {}): Promise<boolean> {
 }
 
 // Lazy detection of ip command availability (Linux only)
-let ipCommandAvailableSync: boolean | null = null
+let cachedIpCommandAvailable: boolean | null = null
 function getIpCommandAvailable(): boolean {
-  if (ipCommandAvailableSync === null) {
-    ipCommandAvailableSync = process.platform === 'linux' ? hasIpCommand() : false
+  if (cachedIpCommandAvailable === null) {
+    cachedIpCommandAvailable = process.platform === 'linux' ? hasIpCommand() : false
   }
-  return ipCommandAvailableSync
+  return cachedIpCommandAvailable
 }
 
 // Cache for async ip command check

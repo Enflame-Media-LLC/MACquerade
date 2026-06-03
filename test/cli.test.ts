@@ -10,8 +10,8 @@ import { execFileSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const dirnamePath = path.dirname(fileURLToPath(import.meta.url))
-const cliPath = path.join(dirnamePath, '..', 'dist', 'cli.js')
+const testDir = path.dirname(fileURLToPath(import.meta.url))
+const cliPath = path.join(testDir, '..', 'dist', 'cli.js')
 
 interface CLIResult {
   stdout: string

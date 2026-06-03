@@ -12,7 +12,8 @@
     "no-unused-vars": "warn",
     "eqeqeq": "warn",
     "no-console": "off",
-    "no-debugger": "error"
+    "no-debugger": "error",
+    "no-underscore-dangle": "off"
   },
   "ignorePatterns": [
     "node_modules",
