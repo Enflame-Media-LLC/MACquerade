@@ -131,6 +131,10 @@ export function lookup(mac: string): VendorInfo | null {
  * @returns Array of matching vendors, sorted by relevance
  */
 export function searchVendors(query: string, limit: number = 50): VendorInfo[] {
+  if (query.length > MAX_VENDOR_SEARCH_QUERY_LENGTH) {
+    return []
+  }
+
   const trimmedQuery = query.trim()
 
   if (!trimmedQuery || trimmedQuery.length > MAX_VENDOR_SEARCH_QUERY_LENGTH) {

@@ -202,6 +202,11 @@ describe('searchVendors()', () => {
       const results = searchVendors('z'.repeat(129))
       expect(results).toEqual([])
     })
+
+    it('rejects oversized padded queries before trimming', () => {
+      const results = searchVendors(' '.repeat(129) + 'a')
+      expect(results).toEqual([])
+    })
   })
 
   describe('limit parameter', () => {
