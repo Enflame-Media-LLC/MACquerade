@@ -69,7 +69,7 @@ jobs:
       - name: Run ESLint
         env:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
-        run: npx eslint .
+        run: npx eslint .github scripts src test
           --no-eslintrc
           --no-ignore
           --config eslint-security.json
