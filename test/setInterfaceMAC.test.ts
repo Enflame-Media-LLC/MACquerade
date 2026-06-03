@@ -267,7 +267,7 @@ describe('setInterfaceMAC darwin', () => {
     }
 
     expect(execFileCalls.length).toBeGreaterThan(0)
-    expect(execFileCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
+    expect(execFileCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
   })
 
 
@@ -320,7 +320,7 @@ describe('setInterfaceMAC darwin', () => {
     expect(execFileSyncCalls.length).toBeGreaterThan(0)
     expect(execFileSyncCalls.every(call => call.options.timeout === 30000)).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.SPOOF_TEST_MARKER === 'preserve-me')).toBe(true)
-    expect(execFileSyncCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
   })
 })
 

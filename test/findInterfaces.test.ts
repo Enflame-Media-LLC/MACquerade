@@ -284,6 +284,83 @@ describe('findInterfacesLinuxIfconfig', () => {
     expect(eth0).toBeDefined()
     expect(eth0?.address).toBe('52:54:00:12:34:56')
   })
+
+  it('returns an empty list when legacy ifconfig is missing', async () => {
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') {
+        const err = new Error('Command failed') as Error & { status?: number }
+        err.status = 1
+        throw err
+      }
+      if (cmd === 'ifconfig') {
+        const err = new Error('ifconfig not found') as Error & { status?: number }
+        err.status = 127
+        throw err
+      }
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+
+    expect(spoof.findInterfaces()).toEqual([])
+  })
+
+  it('propagates legacy ifconfig operational failures', async () => {
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') {
+        const err = new Error('Command failed') as Error & { status?: number }
+        err.status = 1
+        throw err
+      }
+      if (cmd === 'ifconfig') {
+        throw new Error('ifconfig timed out')
+      }
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+
+    expect(() => spoof.findInterfaces()).toThrow('ifconfig timed out')
+  })
+
+  it('propagates async legacy ifconfig operational failures', async () => {
+    const exec = vi.fn((cmd: string, _options: unknown, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+      if (cmd === 'which ip') {
+        const err = new Error('Command failed') as Error & { status?: number }
+        err.status = 1
+        callback(err, '', '')
+        return
+      }
+      if (cmd === 'ifconfig') {
+        callback(new Error('ifconfig timed out'), '', '')
+        return
+      }
+      callback(null, '', '')
+    })
+
+    const mock = {
+      exec,
+      execSync: vi.fn(),
+      execFile: vi.fn(),
+      execFileSync: vi.fn(),
+      spawn: vi.fn(),
+      spawnSync: vi.fn(),
+      fork: vi.fn()
+    }
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({ default: mock, ...mock }))
+
+    const spoof = await import('../src/index.ts')
+
+    await expect(spoof.findInterfacesAsync()).rejects.toThrow('ifconfig timed out')
+  })
 })
 
 // =============================================================================

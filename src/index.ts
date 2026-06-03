@@ -13,7 +13,7 @@ const execFileAsync = promisify(cp.execFile)
 const DEFAULT_TIMEOUT = 30000
 
 // Restrict privileged child process lookup to trusted system directories.
-const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -59,6 +59,11 @@ function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOpt
     ...options,
     env: createSafeEnv(options.env)
   } as T & { env: NodeJS.ProcessEnv; timeout: number }
+}
+
+function isMissingCommandError(error: unknown): boolean {
+  const err = error as NodeJS.ErrnoException & { status?: number }
+  return err.code === 'ENOENT' || err.status === 127
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7
@@ -403,8 +408,11 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   let output: string
   try {
     output = cp.execSync('ifconfig', createSyncExecOptions({ stdio: 'pipe' })).toString()
-  } catch {
-    return []
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
 
   const details: string[] = []
@@ -913,8 +921,11 @@ async function findInterfacesLinuxIfconfigAsync(targets: string[], options: Asyn
   try {
     const { stdout } = await execAsync('ifconfig', createExecOptions(options))
     output = stdout
-  } catch {
-    return []
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
 
   const details: string[] = []
