@@ -79,6 +79,35 @@ jobs:
     name: Run eslint scanning and upload SARIF
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      ESLINT_SECURITY_CONFIG: |
+        {
+          "root": true,
+          "env": {
+            "es2022": true,
+            "node": true
+          },
+          "parser": "@typescript-eslint/parser",
+          "parserOptions": {
+            "ecmaVersion": "latest",
+            "sourceType": "module"
+          },
+          "globals": {
+            "fetch": "readonly"
+          },
+          "rules": {
+            "eqeqeq": "error",
+            "no-debugger": "error"
+          },
+          "overrides": [
+            {
+              "files": ["**/*.js", "**/*.jsx"],
+              "rules": {
+                "no-undef": "error"
+              }
+            }
+          ]
+        }
     permissions:
       contents: read
       security-events: write
@@ -88,7 +117,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install ESLint
-        run: npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.58.1 typescript@6.0.3 @microsoft/eslint-formatter-sarif@3.1.0
+        run: |
+          npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.58.1 typescript@6.0.3 @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Write ESLint config
         run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
