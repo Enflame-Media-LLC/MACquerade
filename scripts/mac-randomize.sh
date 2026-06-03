@@ -54,7 +54,7 @@ if ! command -v brew &> /dev/null; then
   echo "Installing Homebrew (the macOS package manager)..."
   echo "You may be asked for your Mac login password."
   echo ""
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
   if [ "$(uname -m)" = "arm64" ]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
   else
@@ -66,7 +66,7 @@ fi
 # Install Node.js if not present
 if ! command -v node &> /dev/null; then
   echo "Installing Node.js..."
-  brew install node
+  brew install node < /dev/tty
   echo ""
 fi
 
@@ -81,8 +81,8 @@ fi
 # Enable corepack for Yarn support
 if ! command -v yarn &> /dev/null; then
   echo "Setting up Yarn..."
-  if ! corepack enable 2>/dev/null; then
-    if ! sudo corepack enable; then
+  if ! corepack enable < /dev/tty 2>/dev/null; then
+    if ! sudo corepack enable < /dev/tty; then
       echo ""
       echo "Error: Failed to enable Yarn."
       echo "Please try running 'sudo corepack enable' manually, then re-run this script."
