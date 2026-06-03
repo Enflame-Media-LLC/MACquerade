@@ -303,9 +303,15 @@ describe('setInterfaceMAC darwin', () => {
     const originalPath = process.env.PATH
     const originalMarker = process.env.SPOOF_TEST_MARKER
     const originalLdPreload = process.env.LD_PRELOAD
+    const originalLdAudit = process.env.LD_AUDIT
+    const originalDyldPrint = process.env.DYLD_PRINT_LIBRARIES
+    const originalBashFunc = process.env['BASH_FUNC_ip%%']
     process.env.PATH = '/tmp/attacker-controlled'
     process.env.SPOOF_TEST_MARKER = 'preserve-me'
     process.env.LD_PRELOAD = '/tmp/evil.so'
+    process.env.LD_AUDIT = '/tmp/audit.so'
+    process.env.DYLD_PRINT_LIBRARIES = '1'
+    process.env['BASH_FUNC_ip%%'] = '() { echo attacker; }'
 
     try {
       const spoof = await import('../src/index.ts')
@@ -322,12 +328,30 @@ describe('setInterfaceMAC darwin', () => {
       } else {
         process.env.LD_PRELOAD = originalLdPreload
       }
+      if (originalLdAudit === undefined) {
+        delete process.env.LD_AUDIT
+      } else {
+        process.env.LD_AUDIT = originalLdAudit
+      }
+      if (originalDyldPrint === undefined) {
+        delete process.env.DYLD_PRINT_LIBRARIES
+      } else {
+        process.env.DYLD_PRINT_LIBRARIES = originalDyldPrint
+      }
+      if (originalBashFunc === undefined) {
+        delete process.env['BASH_FUNC_ip%%']
+      } else {
+        process.env['BASH_FUNC_ip%%'] = originalBashFunc
+      }
     }
 
     expect(execFileSyncCalls.length).toBeGreaterThan(0)
     expect(execFileSyncCalls.every(call => call.options.timeout === 30000)).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.SPOOF_TEST_MARKER === 'preserve-me')).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.LD_PRELOAD === undefined)).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.LD_AUDIT === undefined)).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.DYLD_PRINT_LIBRARIES === undefined)).toBe(true)
+    expect(execFileSyncCalls.every(call => call.options.env?.['BASH_FUNC_ip%%'] === undefined)).toBe(true)
     expect(execFileSyncCalls.every(call => call.options.env?.PATH === '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin')).toBe(true)
   })
 })

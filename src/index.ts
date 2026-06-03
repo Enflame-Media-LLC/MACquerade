@@ -61,8 +61,10 @@ function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.Process
     return env
   }
 
-  for (const key of DANGEROUS_EXEC_ENV_KEYS) {
-    delete env[key]
+  for (const key of Object.keys(env)) {
+    if (DANGEROUS_EXEC_ENV_KEYS.includes(key) || key.startsWith('LD_') || key.startsWith('DYLD_') || key.startsWith('BASH_FUNC_')) {
+      delete env[key]
+    }
   }
   env.PATH = SAFE_EXEC_PATH
 
