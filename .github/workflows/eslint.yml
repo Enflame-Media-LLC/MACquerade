@@ -18,6 +18,30 @@ on:
   schedule:
     - cron: '24 6 * * 4'
 
+env:
+  ESLINT_SECURITY_CONFIG: |
+    {
+      "root": true,
+      "env": {
+        "es2022": true,
+        "node": true
+      },
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+      },
+      "globals": {
+        "fetch": "readonly"
+      },
+      "rules": {
+        "eqeqeq": "error",
+        "no-debugger": "error",
+        "no-undef": "error",
+        "no-unused-vars": "warn"
+      }
+    }
+
 jobs:
   eslint-pr:
     name: Run eslint scanning for pull requests
@@ -33,26 +57,7 @@ jobs:
         run: npm install --no-save --ignore-scripts eslint@8.10.0 @typescript-eslint/parser@5.62.0
 
       - name: Write ESLint config
-        run: |
-          cat > eslint-security.json <<'EOF'
-          {
-            "env": {
-              "node": true,
-              "es2022": true
-            },
-            "parser": "@typescript-eslint/parser",
-            "parserOptions": {
-              "ecmaVersion": "latest",
-              "sourceType": "module"
-            },
-            "rules": {
-              "eqeqeq": "warn",
-              "no-debugger": "error",
-              "no-undef": "error",
-              "no-unused-vars": "warn"
-            }
-          }
-          EOF
+        run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
 
       - name: Run ESLint
         run: npx eslint .
@@ -76,26 +81,7 @@ jobs:
         run: npm install --no-save --ignore-scripts eslint@8.10.0 @typescript-eslint/parser@5.62.0 @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Write ESLint config
-        run: |
-          cat > eslint-security.json <<'EOF'
-          {
-            "env": {
-              "node": true,
-              "es2022": true
-            },
-            "parser": "@typescript-eslint/parser",
-            "parserOptions": {
-              "ecmaVersion": "latest",
-              "sourceType": "module"
-            },
-            "rules": {
-              "eqeqeq": "warn",
-              "no-debugger": "error",
-              "no-undef": "error",
-              "no-unused-vars": "warn"
-            }
-          }
-          EOF
+        run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
 
       - name: Run ESLint
         env:
@@ -109,6 +95,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
+        if: ${{ hashFiles('eslint-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: eslint-results.sarif
