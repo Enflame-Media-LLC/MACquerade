@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install ESLint
-        run: npm install --no-save --ignore-scripts --legacy-peer-deps eslint@8.57.1 @typescript-eslint/parser@8.46.3
+        run: npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.46.3 typescript@5.9.3
 
       - name: Write ESLint config
         run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
@@ -68,6 +68,7 @@ jobs:
       - name: Run ESLint
         run: npx eslint .
           --no-eslintrc
+          --no-ignore
           --config eslint-security.json
           --ext .js,.jsx,.ts,.tsx
 
@@ -84,7 +85,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install ESLint
-        run: npm install --no-save --ignore-scripts --legacy-peer-deps eslint@8.57.1 @typescript-eslint/parser@8.46.3 @microsoft/eslint-formatter-sarif@3.1.0
+        run: npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.46.3 typescript@5.9.3 @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Write ESLint config
         run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
@@ -94,6 +95,7 @@ jobs:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
         run: npx eslint .
           --no-eslintrc
+          --no-ignore
           --config eslint-security.json
           --ext .js,.jsx,.ts,.tsx
           --format @microsoft/eslint-formatter-sarif
