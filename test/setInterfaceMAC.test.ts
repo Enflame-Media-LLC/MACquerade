@@ -29,7 +29,7 @@ function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
 function createAsyncChildProcessMock(
   mockExecSync: (cmd: string) => Buffer,
   mockExec: (cmd: string) => string,
-  mockExecFile: (cmd: string, args: string[]) => string
+  mockExecFile: (cmd: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) => string
 ) {
   const syncMock = createChildProcessMock(mockExecSync)
   const exec = vi.fn((cmd: string, _options: unknown, callback?: (err: Error | null, stdout?: string, stderr?: string) => void) => {
@@ -47,7 +47,7 @@ function createAsyncChildProcessMock(
       ? _options as (err: Error | null, stdout?: string, stderr?: string) => void
       : callback
     try {
-      cb?.(null, { stdout: mockExecFile(cmd, args), stderr: '' } as unknown as string, '')
+      cb?.(null, { stdout: mockExecFile(cmd, args, typeof _options === 'function' ? undefined : _options as { env?: NodeJS.ProcessEnv }), stderr: '' } as unknown as string, '')
     } catch (err) {
       cb?.(err as Error, '', '')
     }
@@ -617,7 +617,7 @@ describe('getInterfaceMAC linux', () => {
     const spoof = await import('../src/index.ts')
 
     const mac = await spoof.getInterfaceMACAsync('eth0')
-    expect(mockExecFile.mock.calls).toEqual([['ip', ['link', 'show', 'eth0']]])
+    expect(mockExecFile.mock.calls.map(call => [call[0], call[1]])).toEqual([['ip', ['link', 'show', 'eth0']]])
     expect(mac).toBe('00:11:22:33:44:55')
   })
 })
@@ -683,7 +683,7 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
 
   it('sets NetworkAddress only on the registry key for the requested adapter', async () => {
     const setCalls: Array<{ key: string; name: string; value: string }> = []
-    const netshCalls: string[] = []
+    const netshCalls: Array<{ command: string; env?: NodeJS.ProcessEnv }> = []
 
     const registryValues: Record<string, Array<{ name: string; value: string }>> = {
       '\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\0001': [
@@ -724,8 +724,8 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
 
     const mockExecSync = vi.fn(() => Buffer.from(''))
     const mockExec = vi.fn(() => '')
-    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
-      netshCalls.push([cmd, ...args].join(' '))
+    const mockExecFile = vi.fn((cmd: string, args: string[], options?: { env?: NodeJS.ProcessEnv }) => {
+      netshCalls.push({ command: [cmd, ...args].join(' '), env: options?.env })
       return ''
     })
 
@@ -733,8 +733,15 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
     vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
     vi.doMock('winreg', () => ({ default: MockWinreg }))
 
-    const spoof = await import('../src/index.ts')
-    await spoof.setInterfaceMACAsync('Wi-Fi', '00:11:22:33:44:55')
+    const originalPath = process.env.PATH
+    process.env.PATH = 'C:\\Users\\attacker'
+
+    try {
+      const spoof = await import('../src/index.ts')
+      await spoof.setInterfaceMACAsync('Wi-Fi', '00:11:22:33:44:55')
+    } finally {
+      process.env.PATH = originalPath
+    }
 
     expect(setCalls).toEqual([
       {
@@ -743,9 +750,11 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
         value: '001122334455'
       }
     ])
-    expect(netshCalls).toEqual([
+    expect(netshCalls.map(call => call.command)).toEqual([
       'netsh interface set interface Wi-Fi disable',
       'netsh interface set interface Wi-Fi enable'
     ])
+    expect(netshCalls.every(call => call.env?.Path === 'C:\\Windows\\System32;C:\\Windows')).toBe(true)
+    expect(netshCalls.every(call => call.env?.PATH === undefined)).toBe(true)
   })
 })

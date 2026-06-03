@@ -14,6 +14,7 @@ const DEFAULT_TIMEOUT = 30000
 
 // Restrict privileged child process lookup to trusted system directories.
 const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+const SAFE_WINDOWS_EXEC_PATH = 'C:\\Windows\\System32;C:\\Windows'
 const DANGEROUS_EXEC_ENV_KEYS = [
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
@@ -48,6 +49,10 @@ function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.Process
   const env = { ...baseEnv }
 
   if (process.platform === 'win32') {
+    delete env.PATH
+    delete env.Path
+    delete env.path
+    env.Path = SAFE_WINDOWS_EXEC_PATH
     return env
   }
 
