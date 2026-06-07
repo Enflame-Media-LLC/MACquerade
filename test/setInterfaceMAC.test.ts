@@ -8,6 +8,26 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+type TestEnvironment = typeof process.env
+
+function captureEnv(keys: string[]): TestEnvironment {
+  const snapshot: TestEnvironment = {}
+  for (const key of keys) {
+    snapshot[key] = process.env[key]
+  }
+  return snapshot
+}
+
+function restoreEnv(snapshot: TestEnvironment): void {
+  for (const key of Object.keys(snapshot)) {
+    if (snapshot[key] === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = snapshot[key]
+    }
+  }
+}
+
 const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
 
 // Helper to create child_process mock
@@ -302,49 +322,22 @@ describe('setInterfaceMAC darwin', () => {
       execFileSync
     }))
 
-    const originalPath = process.env.PATH
-    const originalMarker = process.env.SPOOF_TEST_MARKER
-    const originalLdPreload = process.env.LD_PRELOAD
-    const originalLdAudit = process.env.LD_AUDIT
-    const originalDyldPrint = process.env.DYLD_PRINT_LIBRARIES
-    const originalBashFunc = process.env['BASH_FUNC_ip%%']
-    process.env.PATH = '/tmp/attacker-controlled'
-    process.env.SPOOF_TEST_MARKER = 'preserve-me'
-    process.env.LD_PRELOAD = '/tmp/evil.so'
-    process.env.LD_AUDIT = '/tmp/audit.so'
-    process.env.DYLD_PRINT_LIBRARIES = '1'
-    process.env['BASH_FUNC_ip%%'] = '() { echo attacker; }'
+    const envKeys = ['PATH', 'SPOOF_TEST_MARKER', 'LD_PRELOAD', 'LD_AUDIT', 'DYLD_PRINT_LIBRARIES', 'BASH_FUNC_ip%%']
+    const originalEnv = captureEnv(envKeys)
+    Object.assign(process.env, {
+      PATH: '/tmp/attacker-controlled',
+      SPOOF_TEST_MARKER: 'preserve-me',
+      LD_PRELOAD: '/tmp/evil.so',
+      LD_AUDIT: '/tmp/audit.so',
+      DYLD_PRINT_LIBRARIES: '1',
+      'BASH_FUNC_ip%%': '() { echo attacker; }'
+    })
 
     try {
       const spoof = await import('../src/index.ts')
       spoof.setInterfaceMAC('en1', '00:11:22:33:44:55', 'Wi-Fi')
     } finally {
-      process.env.PATH = originalPath
-      if (originalMarker === undefined) {
-        delete process.env.SPOOF_TEST_MARKER
-      } else {
-        process.env.SPOOF_TEST_MARKER = originalMarker
-      }
-      if (originalLdPreload === undefined) {
-        delete process.env.LD_PRELOAD
-      } else {
-        process.env.LD_PRELOAD = originalLdPreload
-      }
-      if (originalLdAudit === undefined) {
-        delete process.env.LD_AUDIT
-      } else {
-        process.env.LD_AUDIT = originalLdAudit
-      }
-      if (originalDyldPrint === undefined) {
-        delete process.env.DYLD_PRINT_LIBRARIES
-      } else {
-        process.env.DYLD_PRINT_LIBRARIES = originalDyldPrint
-      }
-      if (originalBashFunc === undefined) {
-        delete process.env['BASH_FUNC_ip%%']
-      } else {
-        process.env['BASH_FUNC_ip%%'] = originalBashFunc
-      }
+      restoreEnv(originalEnv)
     }
 
     expect(execFileSyncCalls.length).toBeGreaterThan(0)
