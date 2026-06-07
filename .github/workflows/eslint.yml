@@ -80,35 +80,6 @@ jobs:
     name: Run eslint scanning and upload SARIF
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      ESLINT_SECURITY_CONFIG: |
-        {
-          "root": true,
-          "env": {
-            "es2022": true,
-            "node": true
-          },
-          "parser": "@typescript-eslint/parser",
-          "parserOptions": {
-            "ecmaVersion": "latest",
-            "sourceType": "module"
-          },
-          "globals": {
-            "fetch": "readonly"
-          },
-          "rules": {
-            "eqeqeq": "error",
-            "no-debugger": "error"
-          },
-          "overrides": [
-            {
-              "files": ["**/*.js", "**/*.jsx"],
-              "rules": {
-                "no-undef": "error"
-              }
-            }
-          ]
-        }
     permissions:
       contents: read
       security-events: write
