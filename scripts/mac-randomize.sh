@@ -27,7 +27,9 @@ cleanup() {
   # Clean up temporary interface data
   [ -n "$INTERFACES_JSON_PATH" ] && rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true
   # Clean up downloaded installer
-  [ -n "$HOMEBREW_INSTALL_SCRIPT" ] && rm -f "$HOMEBREW_INSTALL_SCRIPT" 2>/dev/null || true
+  if [ -n "$HOMEBREW_INSTALL_SCRIPT" ]; then
+    rm -f "$HOMEBREW_INSTALL_SCRIPT" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -89,7 +91,7 @@ fi
 if ! command -v yarn &> /dev/null; then
   echo "Setting up Yarn..."
   if ! corepack enable < /dev/tty 2>/dev/null; then
-    if ! sudo -v < /dev/tty || ! sudo corepack enable; then
+    if ! /bin/bash -c 'sudo -v < /dev/tty' || ! sudo corepack enable; then
       echo ""
       echo "Error: Failed to enable Yarn."
       echo "Please try running 'sudo corepack enable' manually, then re-run this script."
