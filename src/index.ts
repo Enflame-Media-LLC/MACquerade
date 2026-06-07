@@ -15,6 +15,8 @@ const DEFAULT_TIMEOUT = 30000
 const DEFAULT_WINDOWS_DIR = 'C:\\Windows'
 const WINDOWS_SYSTEM32_DIR = 'System32'
 const GETMAC_EXE = 'getmac.exe'
+const IPCONFIG_EXE = 'ipconfig.exe'
+const NETSH_EXE = 'netsh.exe'
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -448,7 +450,7 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
 }
 
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
-  const output = cp.execSync('ipconfig /all', { stdio: 'pipe' }).toString()
+  const output = cp.execFileSync(getWindowsSystem32Executable(IPCONFIG_EXE), ['/all'], { stdio: 'pipe' }).toString()
 
   const interfaces: NetworkInterface[] = []
   const lines = output.split('\n')
@@ -953,8 +955,11 @@ async function findInterfacesLinuxIfconfigAsync(targets: string[], options: Asyn
 }
 
 async function findInterfacesWin32Async(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('ipconfig /all', createExecOptions(options))
+  const { stdout } = await execFileAsync(
+    getWindowsSystem32Executable(IPCONFIG_EXE),
+    ['/all'],
+    createExecOptions(options)
+  )
 
   const interfaces: NetworkInterface[] = []
   const lines = stdout.split('\n')
@@ -1275,8 +1280,8 @@ async function tryWindowsKeyAsync(key: string, device: string, mac: string, opti
     if (registryKeyMatchesDevice(values, device)) {
       await setRegistryValueAsync(networkAdapterKeyPath, 'NetworkAddress', 'REG_SZ', mac)
       const execOpts = createExecOptions(options)
-      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'disable'], execOpts)
-      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'enable'], execOpts)
+      await execFileAsync(getWindowsSystem32Executable(NETSH_EXE), ['interface', 'set', 'interface', device, 'disable'], execOpts)
+      await execFileAsync(getWindowsSystem32Executable(NETSH_EXE), ['interface', 'set', 'interface', device, 'enable'], execOpts)
       return true
     }
   } catch (err) {
