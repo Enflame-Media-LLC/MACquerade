@@ -251,7 +251,7 @@ describe('setInterfaceMAC darwin', () => {
 
     const options = execFileSync.mock.calls[0]?.[2] as { env: { PATH?: string, Path?: string } }
     expect([
-      '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows', 'System32', 'Wbem'].join(String.fromCharCode(92))
     ]).toContain(options.env.PATH)
     expect(options.env.Path).toBe(options.env.PATH)
