@@ -137,7 +137,7 @@ export function searchVendors(query: string, limit: number = 50): VendorInfo[] {
 
   const trimmedQuery = query.trim()
 
-  if (!trimmedQuery || trimmedQuery.length > MAX_VENDOR_SEARCH_QUERY_LENGTH) {
+  if (!trimmedQuery) {
     return []
   }
 
