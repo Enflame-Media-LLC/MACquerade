@@ -8,6 +8,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
+
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
   const mockExecFileSync = (cmd: string, args?: string[]) => {
@@ -788,8 +790,8 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
       }
     ])
     expect(netshCalls.map(call => call.command)).toEqual([
-      'netsh interface set interface Wi-Fi disable',
-      'netsh interface set interface Wi-Fi enable'
+      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi disable',
+      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi enable'
     ])
     expect(netshCalls.every(call => call.env?.Path === 'C:\\Windows\\System32;C:\\Windows')).toBe(true)
     expect(netshCalls.every(call => call.env?.PATH === undefined)).toBe(true)
