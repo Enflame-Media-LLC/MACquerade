@@ -14,6 +14,11 @@ import { promisify } from 'util'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
+const windowsSafePath = [
+  windowsSystem32,
+  ['C:', 'Windows'].join(String.fromCharCode(92)),
+  [windowsSystem32, 'Wbem'].join(String.fromCharCode(92))
+].join(';')
 
 // Helper to load fixture files
 function loadFixture(platform: string, filename: string): string {
@@ -449,7 +454,14 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
@@ -458,8 +470,8 @@ describe('findInterfacesWin32', () => {
         stdio: 'pipe',
         timeout: 30000,
         env: expect.objectContaining({
-          PATH: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows', 'System32', 'Wbem'].join(String.fromCharCode(92)),
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows', 'System32', 'Wbem'].join(String.fromCharCode(92))
+          PATH: windowsSafePath,
+          Path: windowsSafePath
         })
       })
     )
@@ -491,7 +503,14 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
@@ -500,8 +519,8 @@ describe('findInterfacesWin32', () => {
         stdio: 'pipe',
         timeout: 30000,
         env: expect.objectContaining({
-          PATH: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows', 'System32', 'Wbem'].join(String.fromCharCode(92)),
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows', 'System32', 'Wbem'].join(String.fromCharCode(92))
+          PATH: windowsSafePath,
+          Path: windowsSafePath
         })
       })
     )

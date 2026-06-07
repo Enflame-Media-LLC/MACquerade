@@ -460,6 +460,7 @@ describe('setInterfaceMACAsync platform commands', () => {
     await spoof.setInterfaceMACAsync('eth0', '00:11:22:33:44:55')
 
     expect(execFileCalls).toEqual([
+      'which ip',
       'ip link set dev eth0 down',
       'ip link set dev eth0 address 00:11:22:33:44:55',
       'ip link set dev eth0 up'
@@ -488,6 +489,7 @@ describe('setInterfaceMACAsync platform commands', () => {
     spoof.setPreferIfconfig(false)
 
     expect(execFileCalls).toEqual([
+      'which ip',
       'ifconfig eth0 down hw ether 00:11:22:33:44:55',
       'ifconfig eth0 up'
     ])
