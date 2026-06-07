@@ -72,7 +72,7 @@ TypeScript source lives in `src/`, built output goes to `dist/`.
 
 - **`src/types.ts`** - Shared type definitions: `NetworkInterface`, `AsyncOptions`, `RandomFunction`, `Platform`
 
-- **`scripts/mac-randomize.sh`** - Standalone macOS install script that clones, builds, and runs spoof to randomize a MAC address (installs Homebrew/Node.js if needed). This is the script invoked by the README's Quick Start one-liner (`curl -fsSL .../scripts/mac-randomize.sh | bash`).
+- **`scripts/mac-randomize.sh`** - Standalone cross-platform install script that clones, builds, and runs spoof to randomize MAC addresses. It installs or updates Homebrew/Node.js on macOS and Linux, and Chocolatey/Node.js on Windows Bash environments when needed. This is the script invoked by the README's Quick Start one-liner (`curl -fsSL .../scripts/mac-randomize.sh | bash`).
 
 - **`scripts/update-oui.ts`** - Regenerates `src/data/oui.json` from IEEE's OUI registry (run via `yarn update-oui`).
 
@@ -94,7 +94,7 @@ Uses [Oxlint](https://oxc.rs/docs/guide/usage/linter) for fast linting and TypeS
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **spoof** (488 symbols, 873 relationships, 39 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **spoof** (588 symbols, 1048 relationships, 49 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

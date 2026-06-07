@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { promisify } from 'util'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
@@ -28,20 +29,47 @@ function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
     const fullCmd = args ? [cmd, ...args].join(' ') : cmd
     return mockExecSync(fullCmd)
   })
-  const mockExecFile = vi.fn((cmd: string, args?: string[], options?: unknown, callback?: (error: Error | null, stdout: Buffer, stderr: Buffer) => void) => {
+  const mockExec = vi.fn((cmd: string, options?: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+    const cb = typeof options === 'function' ? options : callback
+    try {
+      cb?.(null, mockExecSync(cmd).toString(), '')
+    } catch (err) {
+      cb?.(err as Error, '', '')
+    }
+    return {}
+  })
+  ;(mockExec as typeof mockExec & { [promisify.custom]: (cmd: string) => Promise<{ stdout: string; stderr: string }> })[promisify.custom] = async (cmd: string) => new Promise((resolve, reject) => {
+    mockExec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve({ stdout, stderr })
+    })
+  })
+  const mockExecFile = vi.fn((cmd: string, args?: string[], options?: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
     const cb = typeof options === 'function' ? options : callback
     try {
       const fullCmd = args ? [cmd, ...args].join(' ') : cmd
-      cb?.(null, mockExecSync(fullCmd), Buffer.from(''))
+      cb?.(null, mockExecSync(fullCmd).toString(), '')
     } catch (err) {
-      cb?.(err as Error, Buffer.from(''), Buffer.from(''))
+      cb?.(err as Error, '', '')
     }
     return {}
+  })
+  ;(mockExecFile as typeof mockExecFile & { [promisify.custom]: (cmd: string, args?: string[]) => Promise<{ stdout: string; stderr: string }> })[promisify.custom] = async (cmd: string, args?: string[]) => new Promise((resolve, reject) => {
+    mockExecFile(cmd, args, (err, stdout, stderr) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve({ stdout, stderr })
+    })
   })
   const mock = {
     execSync: mockExecSync,
     execFileSync: mockExecFileSync,
-    exec: vi.fn(),
+    exec: mockExec,
     execFile: mockExecFile,
     spawn: vi.fn(),
     spawnSync: vi.fn(),
@@ -471,7 +499,7 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      expect.objectContaining({
+expect.objectContaining({
         stdio: 'pipe',
         env: expect.objectContaining({
           Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
@@ -519,7 +547,7 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      expect.objectContaining({
+expect.objectContaining({
         stdio: 'pipe',
         env: expect.objectContaining({
           Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
@@ -538,6 +566,128 @@ describe('findInterfacesWin32', () => {
           ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
         })
       })
+    )
+  })
+})
+
+
+// =============================================================================
+// Async Platform Interface Tests
+// =============================================================================
+
+describe('findInterfacesAsync platform discovery', () => {
+  let originalPlatform: string
+
+  beforeEach(() => {
+    originalPlatform = process.platform
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('parses macOS networksetup output asynchronously', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', writable: true })
+    const networksetupOutput = loadFixture('darwin', 'networksetup-listallhardwareports.txt')
+    const ifconfigEn0 = loadFixture('darwin', 'ifconfig-en0.txt')
+    const ifconfigEn1 = loadFixture('darwin', 'ifconfig-en1.txt')
+
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'networksetup -listallhardwareports') return Buffer.from(networksetupOutput)
+      if (cmd.includes('ifconfig') && cmd.includes('en0')) return Buffer.from(ifconfigEn0)
+      if (cmd.includes('ifconfig') && cmd.includes('en1')) return Buffer.from(ifconfigEn1)
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+    const interfaces = await spoof.findInterfacesAsync(['wi-fi'])
+
+    expect(interfaces).toHaveLength(1)
+    expect(interfaces[0]).toMatchObject({ device: 'en1', port: 'Wi-Fi', address: 'AA:BB:CC:DD:EE:FF' })
+  })
+
+  it('parses Linux iproute output asynchronously and probes current MACs with execFile', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+    const ipLinkOutput = loadFixture('linux', 'ip-link-show.txt')
+    const ipLinkEth0 = loadFixture('linux', 'ip-link-show-eth0.txt')
+
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return Buffer.from('/usr/sbin/ip')
+      if (cmd === 'ip link show') return Buffer.from(ipLinkOutput)
+      if (cmd.includes('ip') && cmd.includes('link') && cmd.includes('show') && cmd.includes('eth0')) return Buffer.from(ipLinkEth0)
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
+
+    const spoof = await import('../src/index.ts')
+    const interfaces = await spoof.findInterfacesAsync(['eth0'])
+
+    expect(interfaces).toHaveLength(1)
+    expect(interfaces[0]).toMatchObject({ device: 'eth0', port: 'Ethernet', address: '52:54:00:12:34:56' })
+    expect(childProcessMock.execFile).toHaveBeenCalledWith('ip', ['link', 'show', 'eth0'], expect.any(Function))
+  })
+
+  it('parses Linux ifconfig output asynchronously when ifconfig is preferred', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+    const ifconfigOutput = loadFixture('linux', 'ifconfig.txt')
+    const ifconfigEth0 = loadFixture('linux', 'ifconfig-eth0.txt')
+
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'ifconfig') return Buffer.from(ifconfigOutput)
+      if (cmd === 'ifconfig eth0') return Buffer.from(ifconfigEth0)
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+    spoof.setPreferIfconfig(true)
+    const interfaces = await spoof.findInterfacesAsync(['eth0'])
+    spoof.setPreferIfconfig(false)
+
+    expect(interfaces).toHaveLength(1)
+    expect(interfaces[0]).toMatchObject({ device: 'eth0', port: 'Ethernet', address: '52:54:00:12:34:56' })
+  })
+
+  it('parses Windows ipconfig output asynchronously using absolute System32 executables', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
+    const ipconfigOutput = loadFixture('windows', 'ipconfig-all.txt')
+    const getmacOutput = loadFixture('windows', 'getmac.txt')
+
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') return Buffer.from(ipconfigOutput)
+      if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
+      return Buffer.from('')
+    })
+
+    vi.resetModules()
+    const childProcessMock = createChildProcessMock(mockExecSync)
+    vi.doMock('child_process', () => childProcessMock)
+
+    const spoof = await import('../src/index.ts')
+    const interfaces = await spoof.findInterfacesAsync(['wi-fi'])
+
+    expect(interfaces).toHaveLength(1)
+    expect(interfaces[0]).toMatchObject({ device: 'Wi-Fi', address: 'AA:BB:CC:DD:EE:FF' })
+    expect(childProcessMock.exec).not.toHaveBeenCalledWith('ipconfig /all', expect.anything(), expect.anything())
+    expect(childProcessMock.execFile).toHaveBeenCalledWith(
+      [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
+      ['/all'],
+      expect.any(Function)
+    )
+    expect(childProcessMock.execFile).toHaveBeenCalledWith(
+      [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
+      ['/v', '/fo', 'csv'],
+      expect.any(Function)
     )
   })
 })

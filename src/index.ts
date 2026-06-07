@@ -530,7 +530,11 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
 }
 
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
-  const output = cp.execFileSync(getWindowsSystem32Executable(IPCONFIG_EXE), ['/all'], createSyncExecOptions({ stdio: 'pipe' })).toString()
+  const output = cp.execFileSync(
+    getWindowsSystem32Executable(IPCONFIG_EXE),
+    ['/all'],
+    createSyncExecOptions({ stdio: 'pipe' })
+  ).toString()
 
   const interfaces: NetworkInterface[] = []
   const lines = output.split('\n')
