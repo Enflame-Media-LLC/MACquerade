@@ -52,45 +52,63 @@ function warnDeprecated(fnName: string): void {
 /**
  * Create exec options with timeout and abort signal support
  */
-function createSafeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env = { ...baseEnv }
+type ProcessEnvironment = typeof process.env
 
-  if (process.platform === 'win32') {
-    for (const key of Object.keys(env)) {
-      const normalizedKey = key.toLowerCase()
-      if (normalizedKey === 'path' || normalizedKey === 'comspec') {
-        delete env[key]
-      }
+function isWindowsExecEnvKey(key: string): boolean {
+  var normalizedKey = key.toLowerCase()
+  return normalizedKey === 'path' || normalizedKey === 'comspec'
+}
+
+function isDangerousPosixEnvKey(key: string): boolean {
+  return DANGEROUS_EXEC_ENV_KEYS.includes(key) ||
+    key.startsWith('LD_') ||
+    key.startsWith('DYLD_') ||
+    key.startsWith('BASH_FUNC_')
+}
+
+function createWindowsSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
+  for (var key of Object.keys(env)) {
+    if (isWindowsExecEnvKey(key)) {
+      delete env[key]
     }
-    env.Path = SAFE_WINDOWS_EXEC_PATH
-    env.ComSpec = SAFE_WINDOWS_COMSPEC
-    return env
   }
+  env.Path = SAFE_WINDOWS_EXEC_PATH
+  env.ComSpec = SAFE_WINDOWS_COMSPEC
+  return env
+}
 
-  for (const key of Object.keys(env)) {
-    if (DANGEROUS_EXEC_ENV_KEYS.includes(key) || key.startsWith('LD_') || key.startsWith('DYLD_') || key.startsWith('BASH_FUNC_')) {
+function createPosixSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
+  for (var key of Object.keys(env)) {
+    if (isDangerousPosixEnvKey(key)) {
       delete env[key]
     }
   }
   env.PATH = SAFE_EXEC_PATH
-
   return env
 }
 
-function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal; env: NodeJS.ProcessEnv } {
+function createSafeEnv(baseEnv?: ProcessEnvironment): ProcessEnvironment {
+  var env = { ...(baseEnv ?? process.env) }
+  return process.platform === 'win32'
+    ? createWindowsSafeEnv(env)
+    : createPosixSafeEnv(env)
+}
+
+function createExecOptions(options?: AsyncOptions): { timeout: number; signal?: AbortSignal; env: ProcessEnvironment } {
   return {
-    timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    signal: options.signal,
+    timeout: options?.timeout ?? DEFAULT_TIMEOUT,
+    signal: options?.signal,
     env: createSafeEnv()
   }
 }
 
-function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options: T = {} as T): T & { env: NodeJS.ProcessEnv; timeout: number } {
+function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options?: T): T & { env: ProcessEnvironment; timeout: number } {
+  var execOptions = options ?? {} as T
   return {
     timeout: DEFAULT_TIMEOUT,
-    ...options,
-    env: createSafeEnv(options.env)
-  } as T & { env: NodeJS.ProcessEnv; timeout: number }
+    ...execOptions,
+    env: createSafeEnv(execOptions.env)
+  } as T & { env: ProcessEnvironment; timeout: number }
 }
 
 function isMissingCommandError(error: unknown): boolean {
