@@ -1,5 +1,6 @@
 /*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
+import path from 'path'
 import { promisify } from 'util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
 import Winreg from 'winreg'
@@ -11,6 +12,11 @@ const execFileAsync = promisify(cp.execFile)
 
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
+const DEFAULT_WINDOWS_DIR = 'C:\\Windows'
+const WINDOWS_SYSTEM32_DIR = 'System32'
+const GETMAC_EXE = 'getmac.exe'
+const IPCONFIG_EXE = 'ipconfig.exe'
+const NETSH_EXE = 'netsh.exe'
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -36,6 +42,18 @@ function createExecOptions(options: AsyncOptions = {}): { timeout: number; signa
     timeout: options.timeout ?? DEFAULT_TIMEOUT,
     signal: options.signal
   }
+}
+
+
+/**
+ * Build the absolute path to a Windows System32 executable.
+ *
+ * Windows searches the current working directory and PATH for bare command
+ * names. Use an absolute System32 path for built-in Windows tools that may run
+ * in elevated processes so a planted executable cannot be selected instead.
+ */
+function getWindowsSystem32Executable(executable: string): string {
+  return path.win32.join(DEFAULT_WINDOWS_DIR, WINDOWS_SYSTEM32_DIR, executable)
 }
 
 // Windows registry key for interface MAC. Checked on Windows 7
@@ -307,7 +325,7 @@ function getInterfaceMACLinux(device: string): string | null {
  */
 function getInterfaceMACWin32(device: string): string | null {
   try {
-    const output = cp.execSync('getmac /v /fo csv', { stdio: 'pipe' }).toString()
+    const output = cp.execFileSync(getWindowsSystem32Executable(GETMAC_EXE), ['/v', '/fo', 'csv'], { stdio: 'pipe' }).toString()
     const lines = output.trim().split('\n')
 
     // Skip header line, parse data lines
@@ -432,7 +450,7 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
 }
 
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
-  const output = cp.execSync('ipconfig /all', { stdio: 'pipe' }).toString()
+  const output = cp.execFileSync(getWindowsSystem32Executable(IPCONFIG_EXE), ['/all'], { stdio: 'pipe' }).toString()
 
   const interfaces: NetworkInterface[] = []
   const lines = output.split('\n')
@@ -937,8 +955,11 @@ async function findInterfacesLinuxIfconfigAsync(targets: string[], options: Asyn
 }
 
 async function findInterfacesWin32Async(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('ipconfig /all', createExecOptions(options))
+  const { stdout } = await execFileAsync(
+    getWindowsSystem32Executable(IPCONFIG_EXE),
+    ['/all'],
+    createExecOptions(options)
+  )
 
   const interfaces: NetworkInterface[] = []
   const lines = stdout.split('\n')
@@ -1048,8 +1069,11 @@ async function getInterfaceMACLinuxAsync(device: string, options: AsyncOptions =
  */
 async function getInterfaceMACWin32Async(device: string, options: AsyncOptions = {}): Promise<string | null> {
   try {
-    // Safe: hardcoded command, no user input
-    const { stdout } = await execAsync('getmac /v /fo csv', createExecOptions(options))
+    const { stdout } = await execFileAsync(
+      getWindowsSystem32Executable(GETMAC_EXE),
+      ['/v', '/fo', 'csv'],
+      createExecOptions(options)
+    )
     const lines = stdout.trim().split('\n')
 
     for (let i = 1; i < lines.length; i++) {
@@ -1256,8 +1280,8 @@ async function tryWindowsKeyAsync(key: string, device: string, mac: string, opti
     if (registryKeyMatchesDevice(values, device)) {
       await setRegistryValueAsync(networkAdapterKeyPath, 'NetworkAddress', 'REG_SZ', mac)
       const execOpts = createExecOptions(options)
-      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'disable'], execOpts)
-      await execFileAsync('netsh', ['interface', 'set', 'interface', device, 'enable'], execOpts)
+      await execFileAsync(getWindowsSystem32Executable(NETSH_EXE), ['interface', 'set', 'interface', device, 'disable'], execOpts)
+      await execFileAsync(getWindowsSystem32Executable(NETSH_EXE), ['interface', 'set', 'interface', device, 'enable'], execOpts)
       return true
     }
   } catch (err) {
