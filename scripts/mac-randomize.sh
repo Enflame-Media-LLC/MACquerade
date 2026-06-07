@@ -5,6 +5,8 @@ echo "=== Spoof MAC Randomizer ==="
 echo ""
 
 MIN_NODE_MAJOR=24
+HOMEBREW_INSTALL_COMMIT=280cbc9adffcbdef15dd1c9d991ef2d1dd7cfc9c
+HOMEBREW_INSTALL_SHA256=f3e91784ffeda32bc397de7acc1154724cc47522a459c9ac656cca176eeba457
 OS_UNAME=$(uname -s 2>/dev/null || echo unknown)
 case "$OS_UNAME" in
   Darwin*)
@@ -299,8 +301,25 @@ install_or_update_homebrew() {
   echo "Installing Homebrew (the package manager)..."
   echo "You may be asked for your login password."
   echo ""
+  local actual_sha
   HOMEBREW_INSTALL_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/homebrew-install.XXXXXX")
-  curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$HOMEBREW_INSTALL_SCRIPT"
+  curl -fsSL "https://raw.githubusercontent.com/Homebrew/install/$HOMEBREW_INSTALL_COMMIT/install.sh" -o "$HOMEBREW_INSTALL_SCRIPT"
+  if command -v shasum > /dev/null 2>&1; then
+    actual_sha=$(shasum -a 256 "$HOMEBREW_INSTALL_SCRIPT" | awk '{print $1}')
+  elif command -v sha256sum > /dev/null 2>&1; then
+    actual_sha=$(sha256sum "$HOMEBREW_INSTALL_SCRIPT" | awk '{print $1}')
+  else
+    echo ""
+    echo "Error: Cannot verify the Homebrew installer because no SHA-256 tool was found."
+    exit 1
+  fi
+
+  if [ "$actual_sha" != "$HOMEBREW_INSTALL_SHA256" ]; then
+    echo ""
+    echo "Error: Homebrew installer checksum verification failed."
+    exit 1
+  fi
+
   /bin/bash "$HOMEBREW_INSTALL_SCRIPT" < /dev/tty
   refresh_homebrew_shellenv
 
@@ -455,7 +474,7 @@ enable_corepack() {
       fi
       ;;
     *)
-      if sudo corepack enable > /dev/null; then
+      if sudo corepack enable > /dev/null < /dev/tty; then
         refresh_platform_path
         return 0
       fi
