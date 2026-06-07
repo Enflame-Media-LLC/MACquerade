@@ -2,7 +2,7 @@
  * Tests for pure function exports (normalize, randomize, etc.)
  * No mocking required - tests run against actual library exports.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as spoof from '../src/index.ts'
 import { randomInt } from 'node:crypto'
 
@@ -144,5 +144,37 @@ describe('spoof.parseCSVLine()', () => {
     expect(
       spoof.parseCSVLine('"","Empty","",""')
     ).toEqual(['', 'Empty', '', ''])
+  })
+})
+
+
+describe('deprecated sync compatibility exports', () => {
+  let originalPlatform: string
+
+  beforeEach(() => {
+    originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'freebsd', writable: true })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('warns once per sync wrapper and delegates to the sync implementation', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.resetModules()
+    const spoofModule = await import('../src/index.ts')
+
+    expect(spoofModule.findInterfacesSync()).toEqual([])
+    expect(spoofModule.findInterfacesSync()).toEqual([])
+    expect(spoofModule.findInterfaceSync('en0')).toBeUndefined()
+    expect(() => spoofModule.setInterfaceMACSync('en0', 'invalid')).toThrow('not a valid MAC address')
+
+    expect(warn).toHaveBeenCalledTimes(3)
+    expect(warn.mock.calls[0][0]).toContain('findInterfacesSync() is deprecated')
+    expect(warn.mock.calls[1][0]).toContain('findInterfaceSync() is deprecated')
+    expect(warn.mock.calls[2][0]).toContain('setInterfaceMACSync() is deprecated')
   })
 })

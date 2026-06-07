@@ -8,6 +8,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
+
 // Helper to create child_process mock
 function createChildProcessMock(mockExecSync: (cmd: string) => Buffer) {
   const mockExecFileSync = (cmd: string, args?: string[]) => {
@@ -362,6 +364,104 @@ describe('setInterfaceMAC linux', () => {
   })
 })
 
+
+// =============================================================================
+// Async setInterfaceMAC Tests
+// =============================================================================
+
+describe('setInterfaceMACAsync platform commands', () => {
+  let originalPlatform: string
+
+  beforeEach(() => {
+    originalPlatform = process.platform
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('uses async macOS commands and power cycles Wi-Fi ports', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', writable: true })
+    const execFileCalls: string[] = []
+    const mockExecSync = vi.fn(() => Buffer.from(''))
+    const mockExec = vi.fn(() => '')
+    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
+      execFileCalls.push([cmd, ...args].join(' '))
+      return ''
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
+
+    const spoof = await import('../src/index.ts')
+    await spoof.setInterfaceMACAsync('en1', '00-11-22-33-44-55', 'Wi-Fi')
+
+    expect(execFileCalls).toEqual([
+      'networksetup -setairportpower en1 off',
+      'networksetup -setairportpower en1 on',
+      'ifconfig en1 ether 00:11:22:33:44:55',
+      'networksetup -setairportpower en1 off',
+      'networksetup -setairportpower en1 on'
+    ])
+  })
+
+  it('uses async Linux ip commands when iproute2 is available', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+    const execFileCalls: string[] = []
+    const mockExecSync = vi.fn(() => Buffer.from(''))
+    const mockExec = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return '/usr/sbin/ip'
+      return ''
+    })
+    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
+      execFileCalls.push([cmd, ...args].join(' '))
+      return ''
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
+
+    const spoof = await import('../src/index.ts')
+    spoof.setPreferIfconfig(false)
+    await spoof.setInterfaceMACAsync('eth0', '00:11:22:33:44:55')
+
+    expect(execFileCalls).toEqual([
+      'ip link set dev eth0 down',
+      'ip link set dev eth0 address 00:11:22:33:44:55',
+      'ip link set dev eth0 up'
+    ])
+  })
+
+  it('uses async Linux ifconfig commands when requested', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+    const execFileCalls: string[] = []
+    const mockExecSync = vi.fn(() => Buffer.from(''))
+    const mockExec = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return '/usr/sbin/ip'
+      return ''
+    })
+    const mockExecFile = vi.fn((cmd: string, args: string[]) => {
+      execFileCalls.push([cmd, ...args].join(' '))
+      return ''
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createAsyncChildProcessMock(mockExecSync, mockExec, mockExecFile))
+
+    const spoof = await import('../src/index.ts')
+    spoof.setPreferIfconfig(true)
+    await spoof.setInterfaceMACAsync('eth0', '00:11:22:33:44:55')
+    spoof.setPreferIfconfig(false)
+
+    expect(execFileCalls).toEqual([
+      'ifconfig eth0 down hw ether 00:11:22:33:44:55',
+      'ifconfig eth0 up'
+    ])
+  })
+})
+
 // =============================================================================
 // getInterfaceMAC Tests
 // =============================================================================
@@ -638,8 +738,8 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
       }
     ])
     expect(netshCalls).toEqual([
-      'netsh interface set interface Wi-Fi disable',
-      'netsh interface set interface Wi-Fi enable'
+      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi disable',
+      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi enable'
     ])
   })
 })
