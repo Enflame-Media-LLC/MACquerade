@@ -12,6 +12,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
+const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
 
 // Helper to load fixture files
 function loadFixture(platform: string, filename: string): string {
@@ -436,7 +437,7 @@ describe('findInterfacesWin32', () => {
     const getmacOutput = loadFixture('windows', 'getmac.txt')
 
     const mockExecSync = vi.fn((cmd: string) => {
-      if (cmd === 'ipconfig /all') {
+      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') {
         return Buffer.from(ipconfigOutput)
       }
       if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) {
@@ -465,9 +466,21 @@ describe('findInterfacesWin32', () => {
     expect(wifi).toBeDefined()
     expect(wifi?.address).toBe('AA:BB:CC:DD:EE:FF')
 
+    expect(mockExecSync).not.toHaveBeenCalledWith('ipconfig /all')
     expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
-      ['C:', 'Windows', 'System32', 'getmac.exe'].join(String.fromCharCode(92)),
+      [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
+      ['/all'],
+      expect.objectContaining({
+        stdio: 'pipe',
+        env: expect.objectContaining({
+          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
+        })
+      })
+    )
+    expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
+      [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
       ['/v', '/fo', 'csv'],
       expect.objectContaining({
         stdio: 'pipe',
@@ -485,7 +498,7 @@ describe('findInterfacesWin32', () => {
     const getmacOutput = loadFixture('windows', 'getmac.txt')
 
     const mockExecSync = vi.fn((cmd: string) => {
-      if (cmd === 'ipconfig /all') return Buffer.from(ipconfigOutput)
+      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') return Buffer.from(ipconfigOutput)
       if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
       return Buffer.from('')
     })
@@ -501,9 +514,21 @@ describe('findInterfacesWin32', () => {
     expect(byDevice.length).toBe(1)
     expect(byDevice[0].device).toBe('Wi-Fi')
 
+    expect(mockExecSync).not.toHaveBeenCalledWith('ipconfig /all')
     expect(mockExecSync).not.toHaveBeenCalledWith('getmac /v /fo csv')
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
-      ['C:', 'Windows', 'System32', 'getmac.exe'].join(String.fromCharCode(92)),
+      [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
+      ['/all'],
+      expect.objectContaining({
+        stdio: 'pipe',
+        env: expect.objectContaining({
+          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
+        })
+      })
+    )
+    expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
+      [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
       ['/v', '/fo', 'csv'],
       expect.objectContaining({
         stdio: 'pipe',
