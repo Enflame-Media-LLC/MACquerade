@@ -14,15 +14,20 @@ fi
 # Ensure cleanup on exit
 SPOOF_DIR=""
 INTERFACES_JSON_PATH=""
+HOMEBREW_INSTALL_SCRIPT=""
 cleanup() {
   # Restore cursor visibility
   printf '\033[?25h' 2>/dev/null || true
   # Restore terminal settings if saved
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" < /dev/tty 2>/dev/null || true
+  if [ -n "$SAVED_TTY" ]; then
+    stty "$SAVED_TTY" < /dev/tty 2>/dev/null || true
+  fi
   # Clean up temp directory
   [ -n "$SPOOF_DIR" ] && rm -rf "$SPOOF_DIR" 2>/dev/null || true
   # Clean up temporary interface data
   [ -n "$INTERFACES_JSON_PATH" ] && rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true
+  # Clean up downloaded installer
+  [ -n "$HOMEBREW_INSTALL_SCRIPT" ] && rm -f "$HOMEBREW_INSTALL_SCRIPT" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -54,7 +59,9 @@ if ! command -v brew &> /dev/null; then
   echo "Installing Homebrew (the macOS package manager)..."
   echo "You may be asked for your Mac login password."
   echo ""
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
+  HOMEBREW_INSTALL_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/homebrew-install.XXXXXX")
+  curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$HOMEBREW_INSTALL_SCRIPT"
+  /bin/bash "$HOMEBREW_INSTALL_SCRIPT" < /dev/tty
   if [ "$(uname -m)" = "arm64" ]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
   else
@@ -82,7 +89,7 @@ fi
 if ! command -v yarn &> /dev/null; then
   echo "Setting up Yarn..."
   if ! corepack enable < /dev/tty 2>/dev/null; then
-    if ! sudo corepack enable < /dev/tty; then
+    if ! sudo -v < /dev/tty || ! sudo corepack enable; then
       echo ""
       echo "Error: Failed to enable Yarn."
       echo "Please try running 'sudo corepack enable' manually, then re-run this script."
