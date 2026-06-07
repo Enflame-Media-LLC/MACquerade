@@ -18,7 +18,7 @@ const GETMAC_EXE = 'getmac.exe'
 
 // Restrict command lookup to trusted system directories so privileged callers
 // are not exposed to attacker-controlled PATH entries.
-const TRUSTED_POSIX_SYSTEM_PATH = '/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+const TRUSTED_POSIX_SYSTEM_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 const TRUSTED_WINDOWS_SYSTEM_PATH = 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem'
 
 // Deprecation warning tracking (show once per function)
