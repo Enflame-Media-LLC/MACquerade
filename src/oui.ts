@@ -11,6 +11,9 @@ const require = createRequire(import.meta.url)
 // Load OUI database
 const ouiData: Record<string, string> = require('./data/oui.json')
 
+const MAX_VENDOR_SEARCH_QUERY_LENGTH = 128
+const MAX_FUZZY_DISTANCE = 2
+
 /**
  * Vendor lookup result
  */
@@ -68,31 +71,38 @@ function normalizePrefix(mac: string): string | undefined {
  * Calculate Levenshtein distance between two strings
  * Used for fuzzy matching vendor names
  */
-function levenshteinDistance(a: string, b: string): number {
-  const matrix: number[][] = []
+function levenshteinDistance(a: string, b: string, maxDistance: number): number {
+  if (Math.abs(a.length - b.length) > maxDistance) {
+    return maxDistance + 1
+  }
 
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i]
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j
-  }
+  let previous = Array.from({ length: a.length + 1 }, function(_value, index) { return index })
 
   for (let i = 1; i <= b.length; i++) {
+    const current = [i]
+    let rowMinimum = current[0]
+
     for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1]
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
+      const value = b.charAt(i - 1) === a.charAt(j - 1)
+        ? previous[j - 1]
+        : Math.min(
+          previous[j - 1] + 1, // substitution
+          current[j - 1] + 1,  // insertion
+          previous[j] + 1      // deletion
         )
-      }
+
+      current[j] = value
+      rowMinimum = Math.min(rowMinimum, value)
     }
+
+    if (rowMinimum > maxDistance) {
+      return maxDistance + 1
+    }
+
+    previous = current
   }
 
-  return matrix[b.length][a.length]
+  return previous[a.length]
 }
 
 /**
@@ -121,11 +131,17 @@ export function lookup(mac: string): VendorInfo | null {
  * @returns Array of matching vendors, sorted by relevance
  */
 export function searchVendors(query: string, limit: number = 50): VendorInfo[] {
-  const pattern = query.toLowerCase().trim()
-
-  if (!pattern) {
+  if (query.length > MAX_VENDOR_SEARCH_QUERY_LENGTH) {
     return []
   }
+
+  const trimmedQuery = query.trim()
+
+  if (!trimmedQuery) {
+    return []
+  }
+
+  const pattern = trimmedQuery.toLowerCase()
 
   // Score and filter matches
   const matches: Array<VendorInfo & { score: number }> = []
@@ -156,11 +172,11 @@ export function searchVendors(query: string, limit: number = 50): VendorInfo[] {
       const words = vendorLower.split(/[\s,.\-()]+/)
       for (const word of words) {
         if (word.length >= 3 && pattern.length >= 3) {
-          const distance = levenshteinDistance(pattern, word)
           const maxLen = Math.max(pattern.length, word.length)
           // Allow up to 2 character difference for words >= 5 chars
           // Allow up to 1 character difference for shorter words
-          const threshold = maxLen >= 5 ? 2 : 1
+          const threshold = maxLen >= 5 ? MAX_FUZZY_DISTANCE : 1
+          const distance = levenshteinDistance(pattern, word, threshold)
           if (distance <= threshold) {
             score = Math.max(score, 20 - distance * 5)
           }
