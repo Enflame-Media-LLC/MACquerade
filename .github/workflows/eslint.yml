@@ -21,39 +21,65 @@ on:
 permissions:
   contents: read
 
-jobs:
-  eslint:
-    name: Run eslint scanning
-    runs-on: ubuntu-latest
-    env:
-      ESLINT_SECURITY_CONFIG: |
+env:
+  ESLINT_SECURITY_CONFIG: |
+    {
+      "root": true,
+      "env": {
+        "es2022": true,
+        "node": true
+      },
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+      },
+      "globals": {
+        "fetch": "readonly"
+      },
+      "rules": {
+        "eqeqeq": "error",
+        "no-debugger": "error"
+      },
+      "overrides": [
         {
-          "root": true,
-          "env": {
-            "es2022": true,
-            "node": true
-          },
-          "parser": "@typescript-eslint/parser",
-          "parserOptions": {
-            "ecmaVersion": "latest",
-            "sourceType": "module"
-          },
-          "globals": {
-            "fetch": "readonly"
-          },
+          "files": ["**/*.js", "**/*.jsx"],
           "rules": {
-            "eqeqeq": "error",
-            "no-debugger": "error"
-          },
-          "overrides": [
-            {
-              "files": ["**/*.js", "**/*.jsx"],
-              "rules": {
-                "no-undef": "error"
-              }
-            }
-          ]
+            "no-undef": "error"
+          }
         }
+      ]
+    }
+
+
+jobs:
+  eslint-pr:
+    name: Run eslint scanning for pull requests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install ESLint
+        run: npm install --no-save --ignore-scripts eslint@8.57.1 @typescript-eslint/parser@8.58.1 typescript@6.0.3
+
+      - name: Write ESLint config
+        run: printf '%s\n' "$ESLINT_SECURITY_CONFIG" > eslint-security.json
+
+      - name: Run ESLint
+        run: npx eslint scripts src test tsup.config.ts vitest.config.ts
+          --no-eslintrc
+          --no-ignore
+          --config eslint-security.json
+          --ext .js,.jsx,.ts,.tsx
+
+  eslint-sarif:
+    name: Run eslint scanning and upload SARIF
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
