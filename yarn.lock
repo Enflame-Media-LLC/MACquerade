@@ -2797,6 +2797,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"macquerade@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "macquerade@workspace:."
+  dependencies:
+    "@stryker-mutator/core": "npm:^9.6.1"
+    "@stryker-mutator/vitest-runner": "npm:^9.6.1"
+    "@types/common-tags": "npm:^1.8.4"
+    "@types/minimist": "npm:^1.2.5"
+    "@types/node": "npm:^25.9.2"
+    "@types/winreg": "npm:^1.2.36"
+    "@vitest/coverage-v8": "npm:^4.1.8"
+    chalk: "npm:^5.6.2"
+    common-tags: "npm:^1.8.2"
+    minimist: "npm:^1.2.8"
+    oxlint: "npm:^1.68.0"
+    tsup: "npm:^8.5.1"
+    typescript: "npm:^6.0.3"
+    vitest: "npm:^4.1.8"
+    winreg: "npm:^1.2.5"
+  bin:
+    macquerade: ./dist/cli.js
+    spoof: ./dist/cli.js
+  languageName: unknown
+  linkType: soft
+
 "magic-string@npm:^0.30.17, magic-string@npm:^0.30.21":
   version: 0.30.21
   resolution: "magic-string@npm:0.30.21"
@@ -3672,30 +3697,6 @@ __metadata:
   checksum: 10c0/59f6f05538539b274ba771d2e9e32f6c65451982510564438e048bc1352f019c6efcdc6dd07909b1968144941c14015c2c7d4369fb7c4d7d53ae769716dcc16c
   languageName: node
   linkType: hard
-
-"spoof@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "spoof@workspace:."
-  dependencies:
-    "@stryker-mutator/core": "npm:^9.6.1"
-    "@stryker-mutator/vitest-runner": "npm:^9.6.1"
-    "@types/common-tags": "npm:^1.8.4"
-    "@types/minimist": "npm:^1.2.5"
-    "@types/node": "npm:^25.9.2"
-    "@types/winreg": "npm:^1.2.36"
-    "@vitest/coverage-v8": "npm:^4.1.8"
-    chalk: "npm:^5.6.2"
-    common-tags: "npm:^1.8.2"
-    minimist: "npm:^1.2.8"
-    oxlint: "npm:^1.68.0"
-    tsup: "npm:^8.5.1"
-    typescript: "npm:^6.0.3"
-    vitest: "npm:^4.1.8"
-    winreg: "npm:^1.2.5"
-  bin:
-    spoof: ./dist/cli.js
-  languageName: unknown
-  linkType: soft
 
 "ssri@npm:^13.0.0":
   version: 13.0.0

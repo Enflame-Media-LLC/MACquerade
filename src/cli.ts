@@ -184,22 +184,22 @@ async function init(): Promise<void> {
 
 function help(): void {
   const message = stripIndent`
-    spoof - Spoof your MAC address
+    MACquerade - Spoof your MAC address
 
     Example (randomize MAC address on macOS):
-      spoof randomize en0
+      macquerade randomize en0
 
     Usage:
-      spoof list [--wifi]                            List available devices.
-      spoof set <mac> <devices>...                   Set device MAC address.
-      spoof randomize [--local] [--vendor=<name>] <devices>...
+      macquerade list [--wifi]                            List available devices.
+      macquerade set <mac> <devices>...                   Set device MAC address.
+      macquerade randomize [--local] [--vendor=<name>] <devices>...
                                                      Set device MAC address randomly.
-      spoof reset <devices>...                       Reset device MAC address to default.
-      spoof normalize <mac>                          Given a MAC address, normalize it.
-      spoof lookup <mac>                             Look up vendor for a MAC address.
-      spoof vendors [<query>]                        Search OUI vendor database.
-      spoof help                                     Shows this help message.
-      spoof version                                  Show package version.
+      macquerade reset <devices>...                       Reset device MAC address to default.
+      macquerade normalize <mac>                          Given a MAC address, normalize it.
+      macquerade lookup <mac>                             Look up vendor for a MAC address.
+      macquerade vendors [<query>]                        Search OUI vendor database.
+      macquerade help                                     Shows this help message.
+      macquerade version                                  Show package version.
 
     Options:
       --wifi              Try to only show wireless interfaces.
@@ -213,9 +213,9 @@ function help(): void {
       --timeout=<ms>      Timeout for operations in milliseconds (default: 30000).
 
     Examples:
-      spoof lookup 00:03:93:12:34:56       # Look up Apple device
-      spoof vendors apple                   # Search for Apple OUIs
-      spoof randomize en0 --vendor=samsung  # Randomize as Samsung device
+      macquerade lookup 00:03:93:12:34:56       # Look up Apple device
+      macquerade vendors apple                   # Search for Apple OUIs
+      macquerade randomize en0 --vendor=samsung  # Randomize as Samsung device
 
     Exit codes:
       0  Success
@@ -544,7 +544,7 @@ function vendorsCmd(query: string): void {
       })
     } else {
       console.log(`OUI Database: ${stats.totalPrefixes} prefixes from ${stats.uniqueVendors} vendors`)
-      console.log(chalk.dim('Usage: spoof vendors <query>'))
+      console.log(chalk.dim('Usage: macquerade vendors <query>'))
     }
     return
   }
