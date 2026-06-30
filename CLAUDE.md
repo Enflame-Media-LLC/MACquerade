@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Spoof is a Node.js CLI tool for changing MAC addresses on macOS, Linux, and Windows.
+MACquerade is a Node.js CLI tool for changing MAC addresses on macOS, Linux, and Windows.
 This is the **TheJACKedViking** fork — a TypeScript rewrite originally inspired by the
 Python `SpoofMAC` / Node `spoof` utilities by Feross Aboukhadijeh.
 
 - Runtime: Node.js >= 24
 - Language: TypeScript 6 (ESM, `"type": "module"`)
 - Package manager: Yarn 4 (`packageManager: yarn@4.14.1`)
-- Bin: `dist/cli.js` (installed as the `spoof` command)
+- Bin: `dist/cli.js` (installed as the `macquerade` command; `spoof` is retained as a compatibility alias)
 
 ## Commands
 
@@ -72,7 +72,7 @@ TypeScript source lives in `src/`, built output goes to `dist/`.
 
 - **`src/types.ts`** - Shared type definitions: `NetworkInterface`, `AsyncOptions`, `RandomFunction`, `Platform`
 
-- **`scripts/mac-randomize.sh`** - Standalone cross-platform install script that clones, builds, and runs spoof to randomize MAC addresses. It installs or updates Homebrew/Node.js on macOS and Linux, and Chocolatey/Node.js on Windows Bash environments when needed. This is the script invoked by the README's Quick Start one-liner (`curl -fsSL .../scripts/mac-randomize.sh | bash`).
+- **`scripts/mac-randomize.sh`** - Standalone cross-platform install script that clones, builds, and runs MACquerade to randomize MAC addresses. It installs or updates Homebrew/Node.js on macOS and Linux, and Chocolatey/Node.js on Windows Bash environments when needed. This is the script invoked by the README's Quick Start one-liner (`curl -fsSL .../scripts/mac-randomize.sh | bash`).
 
 - **`scripts/update-oui.ts`** - Regenerates `src/data/oui.json` from IEEE's OUI registry (run via `yarn update-oui`).
 

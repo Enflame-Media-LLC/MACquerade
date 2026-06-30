@@ -1,6 +1,6 @@
 # Repository Guidance
 
-This repo is `spoof`, a Node.js CLI/library for changing MAC addresses on macOS, Linux, and Windows. It is the TheJACKedViking TypeScript rewrite of the original `spoof` utility.
+This repo is `MACquerade`, a Node.js CLI/library for changing MAC addresses on macOS, Linux, and Windows. It is the TheJACKedViking TypeScript rewrite of the original `spoof` utility.
 
 Use `CLAUDE.md` as the companion source of project guidance when it is present. Keep this file aligned with `CLAUDE.md` when tooling, commands, or review policy changes.
 
@@ -10,7 +10,7 @@ Use `CLAUDE.md` as the companion source of project guidance when it is present. 
 - Package manager: Yarn 4.14.1 via Corepack (`packageManager: yarn@4.14.1`).
 - Module system: ESM (`"type": "module"`).
 - Source: TypeScript in `src/`; built output and declarations go to `dist/`.
-- CLI binary: `dist/cli.js`, installed as `spoof`.
+- CLI binary: `dist/cli.js`, installed as `macquerade`; `spoof` is retained as a compatibility alias.
 - Build stack: `tsup` bundles ESM for Node 24, then `tsc --emitDeclarationOnly` emits declarations.
 - Lint: Oxlint. Correctness rules are errors; suspicious rules are warnings; style, pedantic, nursery, and restriction categories are off.
 - Tests: Vitest in Node environment. Test files match `test/**/*.test.ts` and `test/**/*.test.js`.

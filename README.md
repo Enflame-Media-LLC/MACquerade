@@ -1,12 +1,12 @@
-# spoof
+# MACquerade
 
 [![npm][npm-image]][npm-url]
 [![downloads][downloads-image]][downloads-url]
 
-[npm-image]: https://img.shields.io/npm/v/spoof.svg
-[npm-url]: https://npmjs.org/package/spoof
-[downloads-image]: https://img.shields.io/npm/dm/spoof.svg
-[downloads-url]: https://npmjs.org/package/spoof
+[npm-image]: https://img.shields.io/npm/v/macquerade.svg
+[npm-url]: https://npmjs.org/package/macquerade
+[downloads-image]: https://img.shields.io/npm/dm/macquerade.svg
+[downloads-url]: https://npmjs.org/package/macquerade
 
 ### Easily spoof your MAC address on macOS, Linux & Windows
 
@@ -21,7 +21,7 @@ A modern, TypeScript Node.js CLI for changing MAC addresses. Maintained by
 ## Why?
 
 Changing your MAC address on macOS is harder than it should be — the Wi-Fi card needs
-to be disassociated from any connected network before the change takes effect. `spoof`
+to be disassociated from any connected network before the change takes effect. `MACquerade`
 handles all of that for you in a single command. It also works on Linux and Windows.
 
 ---
@@ -29,7 +29,7 @@ handles all of that for you in a single command. It also works on Linux and Wind
 ## Quick Start (macOS one-liner)
 
 The fastest way to randomize your MAC on macOS. This installs Homebrew + Node.js if
-needed, clones and builds `spoof`, then randomizes the MAC of an interface you pick:
+needed, clones and builds `MACquerade`, then randomizes the MAC of an interface you pick:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TheJACKedViking/spoof/main/scripts/mac-randomize.sh | bash
@@ -48,29 +48,29 @@ For everyday use (any platform), install via npm or yarn:
 
 ### 1. Install Node.js 24+
 
-Spoof requires **Node.js >= 24**. Install from [nodejs.org](https://nodejs.org/) or
+MACquerade requires **Node.js >= 24**. Install from [nodejs.org](https://nodejs.org/) or
 via your preferred version manager (nvm, fnm, volta, Homebrew, etc.).
 
-### 2. Install spoof globally
+### 2. Install MACquerade globally
 
 ```bash
-npm install -g spoof
+npm install -g macquerade
 # or
-yarn global add spoof
+yarn global add macquerade
 ```
 
-You should now have a `spoof` command on your `PATH`:
+You should now have a `macquerade` command on your `PATH`:
 
 ```bash
-spoof --help
-spoof version
+macquerade --help
+macquerade version
 ```
 
 ### 3. (Optional) Run without installing
 
 ```bash
-npx spoof list
-sudo npx spoof randomize en0
+npx macquerade list
+sudo npx macquerade randomize en0
 ```
 
 ### 4. (Developers) Install from source
@@ -98,14 +98,14 @@ node dist/cli.js --help
 
 ## Full Command List
 
-You can always view up-to-date usage with `spoof --help`.
+You can always view up-to-date usage with `macquerade --help`.
 
-### `spoof list` (alias: `ls`)
+### `macquerade list` (alias: `ls`)
 
 List all available network interfaces.
 
 ```bash
-spoof list
+macquerade list
 - "Ethernet" on device "en0" with MAC address 70:56:51:BE:B3:00
 - "Wi-Fi"    on device "en1" with MAC address 70:56:51:BE:B3:01 currently set to 70:56:51:BE:B3:02
 - "Bluetooth PAN" on device "en2"
@@ -114,90 +114,90 @@ spoof list
 Filter to wireless interfaces only:
 
 ```bash
-spoof list --wifi
+macquerade list --wifi
 ```
 
-### `spoof set <mac> <devices...>` *(requires root/admin)*
+### `macquerade set <mac> <devices...>` *(requires root/admin)*
 
 Set a specific MAC address on one or more devices:
 
 ```bash
-sudo spoof set 00:11:22:33:44:55 en0
+sudo macquerade set 00:11:22:33:44:55 en0
 ```
 
-### `spoof randomize <devices...>` *(requires root/admin)*
+### `macquerade randomize <devices...>` *(requires root/admin)*
 
 Set a random MAC address. Accepts either the device name (`en0`) or the hardware port
 name (`wi-fi`).
 
 ```bash
-sudo spoof randomize en0
-sudo spoof randomize wi-fi
+sudo macquerade randomize en0
+sudo macquerade randomize wi-fi
 ```
 
 Set the locally-administered bit on the randomized address:
 
 ```bash
-sudo spoof randomize en0 --local
+sudo macquerade randomize en0 --local
 ```
 
 Randomize using a specific vendor's OUI prefix:
 
 ```bash
-sudo spoof randomize en0 --vendor=apple
-sudo spoof randomize en0 --vendor=samsung
-sudo spoof randomize en0 --vendor=intel
+sudo macquerade randomize en0 --vendor=apple
+sudo macquerade randomize en0 --vendor=samsung
+sudo macquerade randomize en0 --vendor=intel
 ```
 
-### `spoof reset <devices...>` *(requires root/admin)*
+### `macquerade reset <devices...>` *(requires root/admin)*
 
 Restore the device's burned-in / hardware MAC address (when readable):
 
 ```bash
-sudo spoof reset wi-fi
+sudo macquerade reset wi-fi
 ```
 
 > On macOS, restarting the computer also resets the MAC — macOS does not persist
 > changes across reboots.
 
-### `spoof normalize <mac>`
+### `macquerade normalize <mac>`
 
 Normalize a MAC address into the canonical colon-separated, uppercase form:
 
 ```bash
-spoof normalize 0003.9312.3456
+macquerade normalize 0003.9312.3456
 # 00:03:93:12:34:56
 ```
 
-### `spoof lookup <mac>`
+### `macquerade lookup <mac>`
 
 Look up the vendor for a MAC address or OUI prefix:
 
 ```bash
-spoof lookup 00:03:93:12:34:56
+macquerade lookup 00:03:93:12:34:56
 # Apple, Inc.
 ```
 
-### `spoof vendors [<query>]`
+### `macquerade vendors [<query>]`
 
 Search the bundled OUI vendor database (fuzzy match), or show database stats with no
 query:
 
 ```bash
-spoof vendors apple
+macquerade vendors apple
 # 00:03:93 - Apple, Inc.
 # 00:05:02 - Apple, Inc.
 # ...
 
-spoof vendors
+macquerade vendors
 # OUI Database: 1691 prefixes from 98 vendors
 ```
 
-### `spoof version`
+### `macquerade version`
 
 Print the installed package version.
 
-### `spoof help`
+### `macquerade help`
 
 Show the help screen.
 

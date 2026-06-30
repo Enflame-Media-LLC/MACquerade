@@ -1,13 +1,16 @@
 {
-  "name": "spoof",
-  "description": "Easily spoof your MAC address in macOS, Linux & Windows",
+  "name": "macquerade",
+  "description": "MACquerade: easily spoof your MAC address in macOS, Linux & Windows",
   "version": "2.0.4",
   "author": {
     "name": "Feross Aboukhadijeh",
     "email": "feross@feross.org",
     "url": "https://feross.org"
   },
-  "bin": "./dist/cli.js",
+  "bin": {
+    "macquerade": "./dist/cli.js",
+    "spoof": "./dist/cli.js"
+  },
   "bugs": {
     "url": "https://github.com/TheJACKedViking/spoof/issues"
   },
@@ -32,6 +35,8 @@
   },
   "homepage": "https://github.com/TheJACKedViking/spoof#readme",
   "keywords": [
+    "MACquerade",
+    "macquerade",
     "MAC address",
     "address",
     "change",
