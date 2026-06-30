@@ -36,6 +36,31 @@ const TRUSTED_WINDOWS_SYSTEM_PATH = [
   WINDOWS_SYSTEM_ROOT,
   path.win32.join(WINDOWS_SYSTEM32_PATH, 'Wbem')
 ].join(';')
+const SAFE_WINDOWS_COMSPEC = path.win32.join(WINDOWS_SYSTEM32_PATH, 'cmd.exe')
+
+// Environment variables that can alter how a child process loads code or resolves
+// commands, independent of PATH. These are stripped from the sanitized env so an
+// attacker who controls the parent environment of an elevated invocation cannot
+// inject code into the privileged system tools we spawn (e.g. via LD_PRELOAD,
+// DYLD_INSERT_LIBRARIES, BASH_FUNC_* shell functions, or NODE_OPTIONS).
+const DANGEROUS_ENV_KEYS = new Set([
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'LD_AUDIT',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'NODE_OPTIONS',
+  'BASH_ENV',
+  'ENV'
+])
+
+function isDangerousEnvKey(key: string): boolean {
+  return DANGEROUS_ENV_KEYS.has(key) ||
+    key.startsWith('LD_') ||
+    key.startsWith('DYLD_') ||
+    key.startsWith('BASH_FUNC_')
+}
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -57,15 +82,28 @@ function warnDeprecated(fnName: string): void {
  * Create exec options with timeout, abort signal, and safe PATH support.
  */
 function createCommandEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const trustedPath = process.platform === 'win32'
+  const isWindows = process.platform === 'win32'
+  const trustedPath = isWindows
     ? TRUSTED_WINDOWS_SYSTEM_PATH
     : TRUSTED_POSIX_SYSTEM_PATH
 
-  return {
-    ...baseEnv,
-    PATH: trustedPath,
-    Path: trustedPath
+  // Start from a copy of the parent env with code-injection vectors removed, then
+  // pin PATH/Path (and ComSpec on Windows) to the trusted system locations.
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (isDangerousEnvKey(key)) {
+      continue
+    }
+    env[key] = value
   }
+
+  env.PATH = trustedPath
+  env.Path = trustedPath
+  if (isWindows) {
+    env.ComSpec = SAFE_WINDOWS_COMSPEC
+  }
+
+  return env
 }
 
 function isMissingCommandError(err: unknown): boolean {

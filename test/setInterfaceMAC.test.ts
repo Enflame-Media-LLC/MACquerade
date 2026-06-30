@@ -262,6 +262,52 @@ describe('setInterfaceMAC darwin', () => {
     ]).toContain(options.env.PATH)
     expect(options.env.Path).toBe(options.env.PATH)
   })
+
+  it('strips code-injection env vars before invoking privileged system tools', async () => {
+    const execFileSync = vi.fn(() => Buffer.from(''))
+    const mock = {
+      execSync: vi.fn(),
+      execFileSync,
+      exec: vi.fn(),
+      execFile: vi.fn(),
+      spawn: vi.fn(),
+      spawnSync: vi.fn(),
+      fork: vi.fn()
+    }
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({ default: mock, ...mock }))
+
+    const injected = {
+      LD_PRELOAD: '/tmp/evil.so',
+      LD_LIBRARY_PATH: '/tmp/evil',
+      DYLD_INSERT_LIBRARIES: '/tmp/evil.dylib',
+      NODE_OPTIONS: '--require /tmp/evil.js',
+      BASH_ENV: '/tmp/evil.sh',
+      'BASH_FUNC_ifconfig%%': '() { :; }',
+      SAFE_KEEP: 'keep-me'
+    }
+    Object.assign(process.env, injected)
+
+    try {
+      const spoof = await import('../src/index.ts')
+      spoof.setInterfaceMAC('en0', '00:11:22:33:44:55')
+    } finally {
+      for (const key of Object.keys(injected)) {
+        delete process.env[key]
+      }
+    }
+
+    const options = execFileSync.mock.calls[0]?.[2] as { env: Record<string, string | undefined> }
+    expect(options.env.LD_PRELOAD).toBeUndefined()
+    expect(options.env.LD_LIBRARY_PATH).toBeUndefined()
+    expect(options.env.DYLD_INSERT_LIBRARIES).toBeUndefined()
+    expect(options.env.NODE_OPTIONS).toBeUndefined()
+    expect(options.env.BASH_ENV).toBeUndefined()
+    expect(options.env['BASH_FUNC_ifconfig%%']).toBeUndefined()
+    // Unrelated variables are preserved.
+    expect(options.env.SAFE_KEEP).toBe('keep-me')
+  })
 })
 
 // =============================================================================
