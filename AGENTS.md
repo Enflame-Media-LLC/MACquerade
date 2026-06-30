@@ -85,7 +85,7 @@ MAC-changing commands such as `sudo node dist/cli.js randomize en0` require elev
 - When changing MAC spoofing logic, review all affected platforms and include tests or manual validation notes for platform branches that cannot be exercised locally.
 
 <!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+## GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **spoof** (588 symbols, 1048 relationships, 49 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 

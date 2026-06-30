@@ -5,7 +5,7 @@ import minimist from 'minimist'
 import * as spoof from './index.js'
 import * as oui from './oui.js'
 import { stripIndent } from 'common-tags'
-import { createRequire } from 'module'
+import { createRequire } from 'node:module'
 import type { NetworkInterface } from './types.js'
 
 const require = createRequire(import.meta.url)
@@ -253,7 +253,7 @@ async function set(mac: string, devices: string[]): Promise<void> {
         process.exitCode = 2
         continue
       }
-      throw new Error('Could not find device for ' + device)
+      throw new Error(`Could not find device for ${device}`)
     }
 
     verbose(`Found device ${it.device} (${it.port}) with current MAC: ${it.currentAddress}`)
@@ -321,7 +321,7 @@ async function randomize(devices: string[]): Promise<void> {
         process.exitCode = 2
         continue
       }
-      throw new Error('Could not find device for ' + device)
+      throw new Error(`Could not find device for ${device}`)
     }
 
     let mac: string
@@ -399,7 +399,7 @@ async function reset(devices: string[]): Promise<void> {
         process.exitCode = 2
         continue
       }
-      throw new Error('Could not find device for ' + device)
+      throw new Error(`Could not find device for ${device}`)
     }
 
     if (!it.address) {
@@ -411,7 +411,7 @@ async function reset(devices: string[]): Promise<void> {
         process.exitCode = 2
         continue
       }
-      throw new Error('Could not read hardware MAC address for ' + device)
+      throw new Error(`Could not read hardware MAC address for ${device}`)
     }
 
     verbose(`Found device ${it.device} (${it.port}) - hardware MAC: ${it.address}, current: ${it.currentAddress}`)

@@ -7,10 +7,10 @@
  * the execSync function to return test fixture data.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { promisify } from 'util'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
@@ -353,7 +353,7 @@ describe('findInterfacesWin32', () => {
     const getmacOutput = loadFixture('windows', 'getmac.txt')
 
     const mockExecSync = vi.fn((cmd: string) => {
-      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') {
+      if (cmd === `${[windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92))} /all`) {
         return Buffer.from(ipconfigOutput)
       }
       if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) {
@@ -401,7 +401,7 @@ describe('findInterfacesWin32', () => {
     const getmacOutput = loadFixture('windows', 'getmac.txt')
 
     const mockExecSync = vi.fn((cmd: string) => {
-      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') return Buffer.from(ipconfigOutput)
+      if (cmd === `${[windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92))} /all`) return Buffer.from(ipconfigOutput)
       if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
       return Buffer.from('')
     })
@@ -526,7 +526,7 @@ describe('findInterfacesAsync platform discovery', () => {
     const getmacOutput = loadFixture('windows', 'getmac.txt')
 
     const mockExecSync = vi.fn((cmd: string) => {
-      if (cmd === [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)) + ' /all') return Buffer.from(ipconfigOutput)
+      if (cmd === `${[windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92))} /all`) return Buffer.from(ipconfigOutput)
       if (cmd.endsWith('\\System32\\getmac.exe /v /fo csv')) return Buffer.from(getmacOutput)
       return Buffer.from('')
     })

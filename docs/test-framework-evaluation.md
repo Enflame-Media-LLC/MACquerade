@@ -34,6 +34,7 @@ After evaluating both Vitest and Node's built-in test runner, **Vitest is recomm
 **Version tested:** 4.0.18
 
 #### Pros
+
 - Mature, battle-tested API (Jest-compatible)
 - No experimental flags required
 - Built-in watch mode with HMR
@@ -43,11 +44,13 @@ After evaluating both Vitest and Node's built-in test runner, **Vitest is recomm
 - TypeScript support out of the box
 
 #### Cons
+
 - +1 dependency (vitest package + transitive deps)
 - Requires config file (vitest.config.ts)
 - Module mocking syntax requires understanding of hoisting
 
 #### Mocking Pattern
+
 ```javascript
 // vi.doMock (not hoisted) for per-test mocking
 vi.resetModules()
@@ -62,19 +65,22 @@ const spoof = await import('../../dist/index.js')
 
 **Version tested:** Node 22.x built-in
 
-#### Pros
+#### Node Pros
+
 - Zero dependencies (built-in)
 - Native ESM support
 - TAP-compatible output
 - Growing adoption
 
-#### Cons
+#### Node Cons
+
 - **CRITICAL:** Module mocking requires `--experimental-test-module-mocks`
 - Experimental features may change without notice
 - Less mature ecosystem
 - Fewer IDE integrations
 
-#### Mocking Pattern
+#### Node Mocking Pattern
+
 ```javascript
 const mock = t.mock.module('child_process', {
   defaultExport: { execSync: mockExecSync },
@@ -156,7 +162,7 @@ Maps almost 1:1 to both frameworks with minor syntax changes.
 
 ## Recommendation
 
-**Choose: Vitest**
+### Choose: Vitest
 
 ### Rationale
 
@@ -192,11 +198,14 @@ Maps almost 1:1 to both frameworks with minor syntax changes.
 ## Dependencies After Migration
 
 **Added:**
+
 - vitest
 
 **Removed:**
+
 - tape
 - esmock
 
 **Unchanged:**
+
 - c8 (optional - vitest has built-in coverage, but c8 can remain for compatibility)

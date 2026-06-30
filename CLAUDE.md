@@ -16,6 +16,7 @@ Python `SpoofMAC` / Node `spoof` utilities by Feross Aboukhadijeh.
 ## Commands
 
 ### Development
+
 ```bash
 yarn install           # Install dependencies
 yarn build             # Build JS (tsup) + type declarations (tsc --emitDeclarationOnly)
@@ -37,11 +38,13 @@ yarn reinstall         # clean + install
 ```
 
 ### Running a Single Test
+
 ```bash
 npx vitest run test/oui.test.ts
 ```
 
 ### Manual Testing
+
 ```bash
 yarn build                                  # Must build first
 node dist/cli.js list                       # List network interfaces
@@ -83,6 +86,7 @@ Uses `tsup` to bundle TypeScript to ESM JavaScript (targeting Node 24), then `ts
 ### Platform Detection
 
 The code uses `process.platform` to branch between:
+
 - `darwin` (macOS): Uses `networksetup` and `airport` binary
 - `linux`: Uses `ip` (iproute2) by default, falls back to `ifconfig` (or `--prefer-ifconfig` flag)
 - `win32` (Windows): Uses `ipconfig` and Windows Registry via `winreg`
@@ -92,7 +96,7 @@ The code uses `process.platform` to branch between:
 Uses [Oxlint](https://oxc.rs/docs/guide/usage/linter) for fast linting and TypeScript for type checking. No semicolons, 2-space indentation, single quotes. ESM module format (`"type": "module"` in package.json).
 
 <!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+## GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **spoof** (588 symbols, 1048 relationships, 49 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
