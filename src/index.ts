@@ -42,7 +42,9 @@ const SAFE_WINDOWS_COMSPEC = path.win32.join(WINDOWS_SYSTEM32_PATH, 'cmd.exe')
 // commands, independent of PATH. These are stripped from the sanitized env so an
 // attacker who controls the parent environment of an elevated invocation cannot
 // inject code into the privileged system tools we spawn (e.g. via LD_PRELOAD,
-// DYLD_INSERT_LIBRARIES, BASH_FUNC_* shell functions, or NODE_OPTIONS).
+// DYLD_INSERT_LIBRARIES, BASH_FUNC_* shell functions, NODE_OPTIONS, or the glibc
+// loader/config search paths such as GCONV_PATH/LOCPATH). Modelled on the set sudo
+// removes by default (env_delete).
 const DANGEROUS_ENV_KEYS = new Set([
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
@@ -52,8 +54,26 @@ const DANGEROUS_ENV_KEYS = new Set([
   'DYLD_FRAMEWORK_PATH',
   'NODE_OPTIONS',
   'BASH_ENV',
-  'ENV'
+  'ENV',
+  // glibc loader / name-resolution / locale search paths that can load attacker code
+  'GCONV_PATH',
+  'GETCONF_DIR',
+  'LOCPATH',
+  'NLSPATH',
+  'HOSTALIASES',
+  'RESOLV_HOST_CONF',
+  'RES_OPTIONS',
+  'LOCALDOMAIN',
+  'TZDIR',
+  // shell field splitting / prompt hooks (defensive even though we use execFile)
+  'IFS',
+  'PS4'
 ])
+
+// Environment variables we pin to trusted values rather than inherit. Compared
+// case-insensitively because Windows treats env names case-insensitively, so an
+// attacker could otherwise smuggle e.g. `SYSTEMROOT` past a case-sensitive copy.
+const PINNED_ENV_KEYS_LOWER = new Set(['path', 'comspec', 'systemroot', 'windir'])
 
 function isDangerousEnvKey(key: string): boolean {
   return DANGEROUS_ENV_KEYS.has(key) ||
@@ -87,11 +107,14 @@ function createCommandEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.Proc
     ? TRUSTED_WINDOWS_SYSTEM_PATH
     : TRUSTED_POSIX_SYSTEM_PATH
 
-  // Start from a copy of the parent env with code-injection vectors removed, then
-  // pin PATH/Path (and ComSpec on Windows) to the trusted system locations.
+  // Start from a copy of the parent env with code-injection vectors removed and
+  // any inherited copy of the pinned keys dropped, then pin PATH/Path (and the
+  // Windows system-root vars + ComSpec) to trusted values. SystemRoot/windir are
+  // pinned, not inherited, because the trusted system root is hardcoded precisely
+  // because those variables are attacker-controllable in an elevated context.
   const env: NodeJS.ProcessEnv = {}
   for (const [key, value] of Object.entries(baseEnv)) {
-    if (isDangerousEnvKey(key)) {
+    if (isDangerousEnvKey(key) || PINNED_ENV_KEYS_LOWER.has(key.toLowerCase())) {
       continue
     }
     env[key] = value
@@ -101,6 +124,8 @@ function createCommandEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.Proc
   env.Path = trustedPath
   if (isWindows) {
     env.ComSpec = SAFE_WINDOWS_COMSPEC
+    env.SystemRoot = WINDOWS_SYSTEM_ROOT
+    env.windir = WINDOWS_SYSTEM_ROOT
   }
 
   return env

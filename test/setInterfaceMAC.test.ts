@@ -285,6 +285,10 @@ describe('setInterfaceMAC darwin', () => {
       NODE_OPTIONS: '--require /tmp/evil.js',
       BASH_ENV: '/tmp/evil.sh',
       'BASH_FUNC_ifconfig%%': '() { :; }',
+      GCONV_PATH: '/tmp/evil-gconv',
+      LOCPATH: '/tmp/evil-loc',
+      NLSPATH: '/tmp/evil-nls/%N',
+      HOSTALIASES: '/tmp/evil-hosts',
       SAFE_KEEP: 'keep-me'
     }
     Object.assign(process.env, injected)
@@ -305,6 +309,10 @@ describe('setInterfaceMAC darwin', () => {
     expect(options.env.NODE_OPTIONS).toBeUndefined()
     expect(options.env.BASH_ENV).toBeUndefined()
     expect(options.env['BASH_FUNC_ifconfig%%']).toBeUndefined()
+    expect(options.env.GCONV_PATH).toBeUndefined()
+    expect(options.env.LOCPATH).toBeUndefined()
+    expect(options.env.NLSPATH).toBeUndefined()
+    expect(options.env.HOSTALIASES).toBeUndefined()
     // Unrelated variables are preserved.
     expect(options.env.SAFE_KEEP).toBe('keep-me')
   })
