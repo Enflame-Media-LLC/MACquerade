@@ -1,4 +1,4 @@
-/*! spoof. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
+/*! MACquerade. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'child_process'
 import path from 'path'
 import type { ExecFileOptionsWithStringEncoding, ExecFileSyncOptions } from 'child_process'

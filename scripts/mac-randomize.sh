@@ -7,7 +7,7 @@ if [ ! -t 0 ]; then
   exec < /dev/tty
 fi
 
-echo "=== Spoof MAC Randomizer ==="
+echo "=== MACquerade MAC Randomizer ==="
 echo ""
 
 MIN_NODE_MAJOR=24
@@ -489,18 +489,18 @@ prepare_platform_dependencies
 # Enable corepack for Yarn support
 enable_corepack
 
-# Clone and build spoof
+# Clone and build MACquerade
 TEMP_PARENT="${TMPDIR:-/tmp}"
-if ! SPOOF_DIR=$(mktemp -d "${TEMP_PARENT%/}/spoof.XXXXXX"); then
+if ! SPOOF_DIR=$(mktemp -d "${TEMP_PARENT%/}/macquerade.XXXXXX"); then
   echo ""
   echo "Error: Failed to create a secure temporary directory."
   exit 1
 fi
 chmod 700 "$SPOOF_DIR"
-echo "Downloading spoof..."
+echo "Downloading MACquerade..."
 if ! git clone --depth 1 https://github.com/TheJACKedViking/spoof.git "$SPOOF_DIR"; then
   echo ""
-  echo "Error: Failed to download spoof. Please check your internet connection."
+  echo "Error: Failed to download MACquerade. Please check your internet connection."
   exit 1
 fi
 cd "$SPOOF_DIR"
@@ -544,7 +544,7 @@ IFACE_PORTS=()
 IFACE_DEVICES=()
 IFACE_ADDRS=()
 
-INTERFACES_JSON_PATH=$(mktemp "${TMPDIR:-/tmp}/spoof-interfaces.XXXXXX")
+INTERFACES_JSON_PATH=$(mktemp "${TMPDIR:-/tmp}/macquerade-interfaces.XXXXXX")
 printf '%s' "$interfaces_json" > "$INTERFACES_JSON_PATH"
 
 while IFS=$'\t' read -r port device addr; do
