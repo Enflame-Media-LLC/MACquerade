@@ -19,6 +19,9 @@ const IPCONFIG_EXE = 'ipconfig.exe'
 const NETSH_EXE = 'netsh.exe'
 
 // Restrict privileged child process lookup to trusted system directories.
+// /run/current-system/sw/bin is NixOS's system profile, where iproute2/net-tools
+// live on those hosts; it is root-owned and simply absent (a no-op for lookup)
+// on non-NixOS systems, so including it is safe for all users.
 const SAFE_EXEC_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 const SAFE_WINDOWS_EXEC_PATH = 'C:\\Windows\\System32;C:\\Windows'
 const SAFE_WINDOWS_COMSPEC = 'C:\\Windows\\System32\\cmd.exe'
@@ -55,7 +58,7 @@ function warnDeprecated(fnName: string): void {
 type ProcessEnvironment = typeof process.env
 
 function isWindowsExecEnvKey(key: string): boolean {
-  var normalizedKey = key.toLowerCase()
+  const normalizedKey = key.toLowerCase()
   return normalizedKey === 'path' || normalizedKey === 'comspec'
 }
 
@@ -67,7 +70,7 @@ function isDangerousPosixEnvKey(key: string): boolean {
 }
 
 function createWindowsSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
-  for (var key of Object.keys(env)) {
+  for (const key of Object.keys(env)) {
     if (isWindowsExecEnvKey(key)) {
       delete env[key]
     }
@@ -78,7 +81,7 @@ function createWindowsSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
 }
 
 function createPosixSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
-  for (var key of Object.keys(env)) {
+  for (const key of Object.keys(env)) {
     if (isDangerousPosixEnvKey(key)) {
       delete env[key]
     }
@@ -88,7 +91,7 @@ function createPosixSafeEnv(env: ProcessEnvironment): ProcessEnvironment {
 }
 
 function createSafeEnv(baseEnv?: ProcessEnvironment): ProcessEnvironment {
-  var env = { ...(baseEnv ?? process.env) }
+  const env = { ...(baseEnv ?? process.env) }
   return process.platform === 'win32'
     ? createWindowsSafeEnv(env)
     : createPosixSafeEnv(env)
@@ -103,7 +106,7 @@ function createExecOptions(options?: AsyncOptions): { timeout: number; signal?: 
 }
 
 function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOptions>(options?: T): T & { env: ProcessEnvironment; timeout: number } {
-  var execOptions = options ?? {} as T
+  const execOptions = options ?? {} as T
   return {
     timeout: DEFAULT_TIMEOUT,
     ...execOptions,
@@ -112,6 +115,9 @@ function createSyncExecOptions<T extends cp.ExecSyncOptions | cp.ExecFileSyncOpt
 }
 
 function isMissingCommandError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
   const err = error as NodeJS.ErrnoException & { status?: number }
   const code = err.code as unknown
   return code === 'ENOENT' || code === 127 || err.status === 127
@@ -529,6 +535,51 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   return interfaces
 }
 
+/**
+ * Returns true when an interface should be included in the result set: either no
+ * targets were requested (return everything) or the interface matches one.
+ */
+function win32InterfaceMatches(it: NetworkInterface, targets: string[]): boolean {
+  if (targets.length === 0) {
+    return true
+  }
+  return targets.some(target =>
+    target === it.port.toLowerCase() || target === it.device.toLowerCase())
+}
+
+/**
+ * Begin a fresh interface record for an `ipconfig /all` adapter header line,
+ * extracting the device name when present.
+ */
+function startWin32Interface(line: string): NetworkInterface {
+  const it: NetworkInterface = {
+    port: '',
+    device: '',
+    address: null,
+    currentAddress: null
+  }
+  const result = /adapter (.+?):/.exec(line)
+  if (result) {
+    it.device = result[1]
+  }
+  return it
+}
+
+/**
+ * Apply a single non-header `ipconfig /all` line to the current interface record,
+ * filling in its description. Address handling differs between the sync and async
+ * code paths (current-MAC lookup), so it is handled by the callers.
+ */
+function applyWin32DescriptionLine(it: NetworkInterface, line: string): void {
+  const result = /description.+?:(.*)/mi.exec(line)
+  if (result) {
+    it.description = result[1].trim()
+  }
+}
+
+const WIN32_ADAPTER_HEADER_RE = /^[A-Z]/
+const WIN32_PHYSICAL_ADDRESS_RE = /Physical Address.+?:(.*)/mi
+
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
   const output = cp.execFileSync(
     getWindowsSystem32Executable(IPCONFIG_EXE),
@@ -537,75 +588,34 @@ function findInterfacesWin32(targets: string[]): NetworkInterface[] {
   ).toString()
 
   const interfaces: NetworkInterface[] = []
-  const lines = output.split('\n')
   let it: NetworkInterface | null = null
-  for (let i = 0; i < lines.length; i++) {
-    // Check if new device
-    let result: RegExpExecArray | null
-    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
-      if (it !== null) {
-        if (targets.length === 0) {
-          // Not trying to match anything in particular, return everything.
-          interfaces.push(it)
-        } else {
-          for (let j = 0; j < targets.length; j++) {
-            const target = targets[j]
-            if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-              interfaces.push(it)
-              break
-            }
-          }
-        }
-      }
 
-      it = {
-        port: '',
-        device: '',
-        address: null,
-        currentAddress: null
+  for (const line of output.split('\n')) {
+    if (WIN32_ADAPTER_HEADER_RE.test(line)) {
+      if (it !== null && win32InterfaceMatches(it, targets)) {
+        interfaces.push(it)
       }
-
-      result = /adapter (.+?):/.exec(lines[i])
-      if (!result) {
-        continue
-      }
-
-      it.device = result[1]
+      it = startWin32Interface(line)
     }
 
     if (!it) {
       continue
     }
 
-    // Try to find address
-    result = /Physical Address.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.address = normalize(result[1].trim()) ?? null
+    const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+    if (addressMatch) {
+      it.address = normalize(addressMatch[1].trim()) ?? null
       // Get current MAC using getmac command, fallback to hardware address
       it.currentAddress = getInterfaceMACWin32(it.device) || it.address
       continue
     }
 
-    // Try to find description
-    result = /description.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.description = result[1].trim()
-      continue
-    }
+    applyWin32DescriptionLine(it, line)
   }
 
   // Push the final interface (the loop only pushes when the *next* header is encountered)
-  if (it !== null) {
-    if (targets.length === 0) {
-      interfaces.push(it)
-    } else {
-      for (const target of targets) {
-        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-          interfaces.push(it)
-          break
-        }
-      }
-    }
+  if (it !== null && win32InterfaceMatches(it, targets)) {
+    interfaces.push(it)
   }
 
   return interfaces
@@ -1053,71 +1063,33 @@ async function findInterfacesWin32Async(targets: string[], options: AsyncOptions
   )
 
   const interfaces: NetworkInterface[] = []
-  const lines = stdout.split('\n')
   let it: NetworkInterface | null = null
 
-  for (let i = 0; i < lines.length; i++) {
-    let result: RegExpExecArray | null
-    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
-      if (it !== null) {
-        if (targets.length === 0) {
-          interfaces.push(it)
-        } else {
-          for (let j = 0; j < targets.length; j++) {
-            const target = targets[j]
-            if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-              interfaces.push(it)
-              break
-            }
-          }
-        }
+  for (const line of stdout.split('\n')) {
+    if (WIN32_ADAPTER_HEADER_RE.test(line)) {
+      if (it !== null && win32InterfaceMatches(it, targets)) {
+        interfaces.push(it)
       }
-
-      it = {
-        port: '',
-        device: '',
-        address: null,
-        currentAddress: null
-      }
-
-      result = /adapter (.+?):/.exec(lines[i])
-      if (!result) {
-        continue
-      }
-
-      it.device = result[1]
+      it = startWin32Interface(line)
     }
 
     if (!it) {
       continue
     }
 
-    result = /Physical Address.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.address = normalize(result[1].trim()) ?? null
+    const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+    if (addressMatch) {
+      it.address = normalize(addressMatch[1].trim()) ?? null
       it.currentAddress = await getInterfaceMACWin32Async(it.device, options) || it.address
       continue
     }
 
-    result = /description.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.description = result[1].trim()
-      continue
-    }
+    applyWin32DescriptionLine(it, line)
   }
 
   // Push the final interface (the loop only pushes when the *next* header is encountered)
-  if (it !== null) {
-    if (targets.length === 0) {
-      interfaces.push(it)
-    } else {
-      for (const target of targets) {
-        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-          interfaces.push(it)
-          break
-        }
-      }
-    }
+  if (it !== null && win32InterfaceMatches(it, targets)) {
+    interfaces.push(it)
   }
 
   return interfaces
