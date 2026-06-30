@@ -557,6 +557,22 @@ const WIN32_PHYSICAL_ADDRESS_RE = /Physical Address.+?:(.*)/mi
  * otherwise fills in the current interface's address/description. Returns the
  * interface record that subsequent lines should apply to.
  */
+/**
+ * Apply a `Physical Address` line to the current interface (sync path), resolving
+ * the current MAC via getmac with a fallback to the hardware address. Returns
+ * true when the line was an address line and was consumed.
+ */
+function applyWin32AddressLine(it: NetworkInterface, line: string): boolean {
+  const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+  if (!addressMatch) {
+    return false
+  }
+  it.address = normalize(addressMatch[1].trim()) ?? null
+  // Get current MAC using getmac command, fallback to hardware address
+  it.currentAddress = getInterfaceMACWin32(it.device) || it.address
+  return true
+}
+
 function readWin32InterfaceLine(
   it: NetworkInterface | null,
   line: string,
@@ -574,15 +590,10 @@ function readWin32InterfaceLine(
     return it
   }
 
-  const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
-  if (addressMatch) {
-    it.address = normalize(addressMatch[1].trim()) ?? null
-    // Get current MAC using getmac command, fallback to hardware address
-    it.currentAddress = getInterfaceMACWin32(it.device) || it.address
-    return it
+  if (!applyWin32AddressLine(it, line)) {
+    applyWin32DescriptionLine(it, line)
   }
 
-  applyWin32DescriptionLine(it, line)
   return it
 }
 
