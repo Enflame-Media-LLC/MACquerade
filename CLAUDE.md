@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MACquerade is a Node.js CLI tool for changing MAC addresses on macOS, Linux, and Windows.
+MACquerade is a Node.js CLI tool for changing MAC (Media Access Control) addresses on macOS, Linux, and Windows.
 This is the **TheJACKedViking** fork — a TypeScript rewrite originally inspired by the
 Python `SpoofMAC` / Node `spoof` utilities by Feross Aboukhadijeh.
 
 - Runtime: Node.js >= 24
-- Language: TypeScript 6 (ESM, `"type": "module"`)
+- Language: TypeScript 6 (ESM — ECMAScript Modules, `"type": "module"`)
 - Package manager: Yarn 4 (`packageManager: yarn@4.14.1`)
 - Bin: `dist/cli.js` (installed as the `macquerade` command; `spoof` is retained as a compatibility alias)
 
@@ -32,7 +32,7 @@ yarn typecheck         # Type check only (tsc --noEmit)
 yarn validate          # Build + lint + tests
 yarn validate:strict   # Typecheck + build + lint + tests (runs in prepublishOnly/preversion)
 yarn mutation          # Run Stryker mutation testing
-yarn update-oui        # Regenerate src/data/oui.json from IEEE data
+yarn update-oui        # Regenerate src/data/oui.json from IEEE (Institute of Electrical and Electronics Engineers) data
 yarn clean             # Remove node_modules, dist, .yarn/cache
 yarn reinstall         # clean + install
 ```
@@ -51,7 +51,7 @@ node dist/cli.js list                       # List network interfaces
 node dist/cli.js --help                     # Show help
 sudo node dist/cli.js randomize en0         # Test MAC spoofing (requires root)
 node dist/cli.js lookup 00:03:93:12:34:56   # Look up vendor for MAC
-node dist/cli.js vendors apple              # Search OUI vendor database
+node dist/cli.js vendors apple              # Search OUI (Organizationally Unique Identifier) vendor database
 ```
 
 ## Architecture
