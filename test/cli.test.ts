@@ -48,13 +48,13 @@ describe('CLI help', () => {
     const { stdout, exitCode } = runCLI(['help'])
 
     expect(exitCode).toBe(0)
-    expect(stdout).toContain('spoof - Spoof your MAC address')
+    expect(stdout).toContain('MACquerade - Spoof your MAC address')
     expect(stdout).toContain('Usage:')
-    expect(stdout).toContain('spoof list')
-    expect(stdout).toContain('spoof set')
-    expect(stdout).toContain('spoof randomize')
-    expect(stdout).toContain('spoof reset')
-    expect(stdout).toContain('spoof normalize')
+    expect(stdout).toContain('macquerade list')
+    expect(stdout).toContain('macquerade set')
+    expect(stdout).toContain('macquerade randomize')
+    expect(stdout).toContain('macquerade reset')
+    expect(stdout).toContain('macquerade normalize')
     expect(stdout).toContain('Options:')
     expect(stdout).toContain('--wifi')
     expect(stdout).toContain('--local')
@@ -65,7 +65,7 @@ describe('CLI help', () => {
     const { stdout, exitCode } = runCLI([])
 
     expect(exitCode).toBe(0)
-    expect(stdout).toContain('spoof - Spoof your MAC address')
+    expect(stdout).toContain('MACquerade - Spoof your MAC address')
   })
 })
 

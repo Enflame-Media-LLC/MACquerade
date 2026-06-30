@@ -1,5 +1,5 @@
 /**
- * Type definitions for spoof
+ * Type definitions for MACquerade
  */
 
 /**
