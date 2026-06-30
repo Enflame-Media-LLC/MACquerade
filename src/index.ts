@@ -12,11 +12,15 @@ const execFileAsync = promisify(cp.execFile)
 
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
-// Resolve the Windows system root from the environment so non-standard installs
-// (e.g. Windows on a drive other than C:) still locate the real system binaries.
-// Falls back to the conventional C:\Windows when the variable is unset, which is
-// also the case when these constants are evaluated on non-Windows hosts.
-const WINDOWS_SYSTEM_ROOT = process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows'
+// Trusted Windows system root. This is deliberately hardcoded rather than read
+// from process.env.SystemRoot / process.env.windir: this module may run in an
+// elevated process, and those environment variables are attacker-controllable,
+// so trusting them to locate "trusted" system binaries (ipconfig/getmac/netsh)
+// or to build the sanitized PATH would reintroduce the very path-hijacking this
+// module defends against. C:\Windows is the conventional system root on
+// effectively all Windows installs; non-standard system drives are intentionally
+// not supported here in exchange for not trusting the ambient environment.
+const WINDOWS_SYSTEM_ROOT = 'C:\\Windows'
 const DEFAULT_WINDOWS_DIR = WINDOWS_SYSTEM_ROOT
 const WINDOWS_SYSTEM32_DIR = 'System32'
 const GETMAC_EXE = 'getmac.exe'
