@@ -551,6 +551,41 @@ function applyWin32DescriptionLine(it: NetworkInterface, line: string): void {
 const WIN32_ADAPTER_HEADER_RE = /^[A-Z]/
 const WIN32_PHYSICAL_ADDRESS_RE = /Physical Address.+?:(.*)/mi
 
+/**
+ * Process one `ipconfig /all` line for the synchronous parser: starts a new
+ * interface on an adapter header (flushing the previous one when it matches),
+ * otherwise fills in the current interface's address/description. Returns the
+ * interface record that subsequent lines should apply to.
+ */
+function readWin32InterfaceLine(
+  it: NetworkInterface | null,
+  line: string,
+  interfaces: NetworkInterface[],
+  targets: string[]
+): NetworkInterface | null {
+  if (WIN32_ADAPTER_HEADER_RE.test(line)) {
+    if (it !== null && win32InterfaceMatches(it, targets)) {
+      interfaces.push(it)
+    }
+    it = startWin32Interface(line)
+  }
+
+  if (!it) {
+    return it
+  }
+
+  const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+  if (addressMatch) {
+    it.address = normalize(addressMatch[1].trim()) ?? null
+    // Get current MAC using getmac command, fallback to hardware address
+    it.currentAddress = getInterfaceMACWin32(it.device) || it.address
+    return it
+  }
+
+  applyWin32DescriptionLine(it, line)
+  return it
+}
+
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
   const output = cp.execFileSync(
     getWindowsSystem32Executable(IPCONFIG_EXE),
@@ -562,26 +597,7 @@ function findInterfacesWin32(targets: string[]): NetworkInterface[] {
   let it: NetworkInterface | null = null
 
   for (const line of output.split('\n')) {
-    if (WIN32_ADAPTER_HEADER_RE.test(line)) {
-      if (it !== null && win32InterfaceMatches(it, targets)) {
-        interfaces.push(it)
-      }
-      it = startWin32Interface(line)
-    }
-
-    if (!it) {
-      continue
-    }
-
-    const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
-    if (addressMatch) {
-      it.address = normalize(addressMatch[1].trim()) ?? null
-      // Get current MAC using getmac command, fallback to hardware address
-      it.currentAddress = getInterfaceMACWin32(it.device) || it.address
-      continue
-    }
-
-    applyWin32DescriptionLine(it, line)
+    it = readWin32InterfaceLine(it, line, interfaces, targets)
   }
 
   // Push the final interface (the loop only pushes when the *next* header is encountered)
