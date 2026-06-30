@@ -502,7 +502,7 @@ describe('findInterfacesWin32', () => {
 expect.objectContaining({
         stdio: 'pipe',
         env: expect.objectContaining({
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          Path: `${['C:', 'Windows', 'System32'].join(String.fromCharCode(92))};${['C:', 'Windows'].join(String.fromCharCode(92))}`,
           ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
         })
       })
@@ -514,7 +514,7 @@ expect.objectContaining({
         stdio: 'pipe',
         timeout: 30000,
         env: expect.objectContaining({
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          Path: `${['C:', 'Windows', 'System32'].join(String.fromCharCode(92))};${['C:', 'Windows'].join(String.fromCharCode(92))}`,
           ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
         })
       })
@@ -550,7 +550,7 @@ expect.objectContaining({
 expect.objectContaining({
         stdio: 'pipe',
         env: expect.objectContaining({
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          Path: `${['C:', 'Windows', 'System32'].join(String.fromCharCode(92))};${['C:', 'Windows'].join(String.fromCharCode(92))}`,
           ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
         })
       })
@@ -562,7 +562,7 @@ expect.objectContaining({
         stdio: 'pipe',
         timeout: 30000,
         env: expect.objectContaining({
-          Path: ['C:', 'Windows', 'System32'].join(String.fromCharCode(92)) + ';' + ['C:', 'Windows'].join(String.fromCharCode(92)),
+          Path: `${['C:', 'Windows', 'System32'].join(String.fromCharCode(92))};${['C:', 'Windows'].join(String.fromCharCode(92))}`,
           ComSpec: ['C:', 'Windows', 'System32', 'cmd.exe'].join(String.fromCharCode(92))
         })
       })
