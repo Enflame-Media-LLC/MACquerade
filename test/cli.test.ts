@@ -6,9 +6,9 @@
  * and output formatting without requiring root privileges for MAC changes.
  */
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const cliPath = path.join(testDir, '..', 'dist', 'cli.js')

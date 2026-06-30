@@ -43,11 +43,11 @@ cleanup() {
   # Restore cursor visibility
   printf '\033[?25h' 2>/dev/null || true
   # Restore terminal settings if saved
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
+  if [ -n "$SAVED_TTY" ]; then stty "$SAVED_TTY" 2>/dev/null || true; fi
   # Clean up temp directory
-  [ -n "$SPOOF_DIR" ] && rm -rf "$SPOOF_DIR" 2>/dev/null || true
+  if [ -n "$SPOOF_DIR" ]; then rm -rf "$SPOOF_DIR" 2>/dev/null || true; fi
   # Clean up temporary interface data
-  [ -n "$INTERFACES_JSON_PATH" ] && rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true
+  if [ -n "$INTERFACES_JSON_PATH" ]; then rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
 
@@ -216,7 +216,7 @@ choose_option() {
   done
 
   printf '\033[?25h'
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
+  if [ -n "$SAVED_TTY" ]; then stty "$SAVED_TTY" 2>/dev/null || true; fi
   SAVED_TTY=""
 
   return "$choice"
@@ -548,9 +548,9 @@ INTERFACES_JSON_PATH=$(mktemp "${TMPDIR:-/tmp}/macquerade-interfaces.XXXXXX")
 printf '%s' "$interfaces_json" > "$INTERFACES_JSON_PATH"
 
 while IFS=$'\t' read -r port device addr; do
-  IFACE_PORTS[$iface_count]="$port"
-  IFACE_DEVICES[$iface_count]="$device"
-  IFACE_ADDRS[$iface_count]="$addr"
+  IFACE_PORTS[iface_count]="$port"
+  IFACE_DEVICES[iface_count]="$device"
+  IFACE_ADDRS[iface_count]="$addr"
   iface_count=$((iface_count + 1))
 done < <(node - "$INTERFACES_JSON_PATH" <<'NODE'
 const fs = require('fs')
@@ -579,7 +579,7 @@ fi
 # Build display labels
 IFACE_LABELS=()
 for ((i=0; i<iface_count; i++)); do
-  IFACE_LABELS[$i]="${IFACE_PORTS[$i]} (${IFACE_DEVICES[$i]}) — ${IFACE_ADDRS[$i]}"
+  IFACE_LABELS[i]="${IFACE_PORTS[$i]} (${IFACE_DEVICES[$i]}) — ${IFACE_ADDRS[$i]}"
 done
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -625,7 +625,7 @@ draw_picker() {
 # Initialize selection state
 IFACE_SELECTED=()
 for ((i=0; i<iface_count; i++)); do
-  IFACE_SELECTED[$i]=0
+  IFACE_SELECTED[i]=0
 done
 
 cursor=0
@@ -678,9 +678,9 @@ while true; do
       ;;
     ' ')  # Spacebar — toggle selection
       if [ "${IFACE_SELECTED[$cursor]}" -eq 0 ]; then
-        IFACE_SELECTED[$cursor]=1
+        IFACE_SELECTED[cursor]=1
       else
-        IFACE_SELECTED[$cursor]=0
+        IFACE_SELECTED[cursor]=0
       fi
       ;;
     '')  # Enter — confirm

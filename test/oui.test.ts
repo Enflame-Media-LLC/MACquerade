@@ -204,7 +204,7 @@ describe('searchVendors()', () => {
     })
 
     it('rejects oversized padded queries before trimming', () => {
-      const results = searchVendors(' '.repeat(129) + 'a')
+      const results = searchVendors(`${' '.repeat(129)}a`)
       expect(results).toEqual([])
     })
   })

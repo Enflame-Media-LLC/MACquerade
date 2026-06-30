@@ -220,7 +220,7 @@ async function main(): Promise<void> {
 
     // Write to file
     const json = JSON.stringify(sortedResult, null, 2)
-    writeFileSync(OUTPUT_PATH, json + '\n')
+    writeFileSync(OUTPUT_PATH, `${json}\n`)
     console.log(`Wrote ${(json.length / 1024).toFixed(2)} KB to ${OUTPUT_PATH}`)
 
     console.log('\nDone! OUI database updated successfully.')

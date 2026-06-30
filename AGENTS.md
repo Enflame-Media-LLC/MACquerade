@@ -1,6 +1,6 @@
 # Repository Guidance
 
-This repo is `MACquerade`, a Node.js CLI/library for changing MAC addresses on macOS, Linux, and Windows. It is the TheJACKedViking TypeScript rewrite of the original `spoof` utility.
+This repo is `MACquerade`, a Node.js CLI/library for changing MAC (Media Access Control) addresses on macOS, Linux, and Windows. It is the TheJACKedViking TypeScript rewrite of the original `spoof` utility.
 
 Use `CLAUDE.md` as the companion source of project guidance when it is present. Keep this file aligned with `CLAUDE.md` when tooling, commands, or review policy changes.
 
@@ -8,7 +8,7 @@ Use `CLAUDE.md` as the companion source of project guidance when it is present. 
 
 - Runtime: Node.js `>=24` per `package.json`. CI also runs Node 22 for compatibility.
 - Package manager: Yarn 4.14.1 via Corepack (`packageManager: yarn@4.14.1`).
-- Module system: ESM (`"type": "module"`).
+- Module system: ESM — ECMAScript Modules (`"type": "module"`).
 - Source: TypeScript in `src/`; built output and declarations go to `dist/`.
 - CLI binary: `dist/cli.js`, installed as `macquerade`; `spoof` is retained as a compatibility alias.
 - Build stack: `tsup` bundles ESM for Node 24, then `tsc --emitDeclarationOnly` emits declarations.
@@ -34,7 +34,7 @@ yarn coverage          # Alias for build + coverage
 yarn validate          # Build + lint + tests
 yarn validate:strict   # Typecheck + build + lint + tests
 yarn mutation          # Run Stryker mutation testing
-yarn update-oui        # Regenerate src/data/oui.json from IEEE data
+yarn update-oui        # Regenerate src/data/oui.json from IEEE (Institute of Electrical and Electronics Engineers) data
 ```
 
 For a single test file, run:
@@ -59,7 +59,7 @@ MAC-changing commands such as `sudo node dist/cli.js randomize en0` require elev
 
 ## Architecture Notes
 
-- `src/index.ts` exposes the library API: async interface discovery and MAC changes, deprecated sync compatibility functions, MAC normalization/randomization utilities, and OUI exports.
+- `src/index.ts` exposes the library API: async interface discovery and MAC changes, deprecated sync compatibility functions, MAC normalization/randomization utilities, and OUI (Organizationally Unique Identifier) exports.
 - `src/cli.ts` is the command-line entry point. It uses `minimist` and supports `list`/`ls`, `set`, `randomize`, `reset`, `normalize`, `lookup`, `vendors`, `version`, and `help`.
 - `src/oui.ts` handles OUI vendor lookup, fuzzy vendor search, vendor-specific random MAC generation, and database stats from `src/data/oui.json`.
 - `src/types.ts` contains shared types such as `NetworkInterface`, `AsyncOptions`, `RandomFunction`, and `Platform`.
@@ -76,16 +76,17 @@ MAC-changing commands such as `sudo node dist/cli.js randomize en0` require elev
 ## Review and Verification Policy
 
 - Before modifying a function, class, method, or exported API, run GitNexus impact analysis as described below and report the blast radius.
-- For normal code changes, run the smallest useful verification first, then run `yarn validate:strict` when the change is broad, touches release/package behavior, or affects public API/CLI behavior.
+- For normal code changes, run the smallest useful verification first.
+- Run `yarn validate:strict` when the change is broad, touches release/package behavior, or affects public API/CLI behavior.
 - For PR readiness, ensure at least `yarn lint`, `yarn typecheck`, and `yarn test:only` pass locally. This mirrors the CI job steps.
 - CI runs on pull requests and pushes to `master`/`main` across Node 22 and 24 on Ubuntu, macOS, and Windows.
 - Release tags `v*` run `yarn validate:strict` before `yarn npm publish --provenance --access public`.
-- Security/code scanning workflows include CodeQL, OSV Scanner, OSSAR, and an ESLint SARIF workflow. Treat new security scanner findings as review blockers unless explicitly triaged.
+- Security/code scanning workflows include CodeQL, OSV (Open Source Vulnerabilities) Scanner, OSSAR, and an ESLint SARIF workflow. Treat new security scanner findings as review blockers unless explicitly triaged.
 - For code review, prioritize behavioral regressions, platform-specific breakage, CLI/API contract changes, missing tests, and release/build risks before style comments.
 - When changing MAC spoofing logic, review all affected platforms and include tests or manual validation notes for platform branches that cannot be exercised locally.
 
 <!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+## GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **spoof** (588 symbols, 1048 relationships, 49 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 

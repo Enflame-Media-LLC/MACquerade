@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup'
-import { copyFileSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { copyFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 
 export default defineConfig({
   entry: {
@@ -14,7 +14,7 @@ export default defineConfig({
   target: 'node24',
   splitting: false,
   shims: false,
-  onSuccess: async () => {
+  onSuccess: () => {
     // Copy the OUI data file to dist
     const srcPath = join('src', 'data', 'oui.json')
     const destDir = join('dist', 'data')
@@ -22,5 +22,6 @@ export default defineConfig({
     mkdirSync(destDir, { recursive: true })
     copyFileSync(srcPath, destPath)
     console.log('Copied oui.json to dist/data/')
+    return Promise.resolve()
   }
 })
