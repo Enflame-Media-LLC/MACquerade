@@ -35,8 +35,6 @@ jobs:
     - name: Run Microsoft Security DevOps
       uses: microsoft/security-devops-action@08976cb623803b1b36d7112d4ff9f59eae704de0 # v1.12.0
       id: msdo
-      with:
-        tools: antimalware,checkov,templateanalyzer
       env:
         GDN_ESLINT_DISABLEDEFAULTCONFIGURATIONFILE: "true"
 
