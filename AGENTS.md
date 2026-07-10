@@ -81,7 +81,7 @@ MAC-changing commands such as `sudo node dist/cli.js randomize en0` require elev
 - For PR readiness, ensure at least `yarn lint`, `yarn typecheck`, and `yarn test:only` pass locally. This mirrors the CI job steps.
 - CI runs on pull requests and pushes to `master`/`main` across Node 22 and 24 on Ubuntu, macOS, and Windows.
 - Release tags `v*` run `yarn validate:strict` before `yarn npm publish --provenance --access public`.
-- Security/code scanning workflows include CodeQL, OSV (Open Source Vulnerabilities) Scanner, OSSAR, and an ESLint SARIF workflow. Treat new security scanner findings as review blockers unless explicitly triaged.
+- Security/code scanning workflows include CodeQL, OSV (Open Source Vulnerabilities) Scanner, OSSAR (Open Source Static Analysis Runner), and an ESLint SARIF workflow. Treat new security scanner findings as review blockers unless explicitly triaged.
 - For code review, prioritize behavioral regressions, platform-specific breakage, CLI/API contract changes, missing tests, and release/build risks before style comments.
 - When changing MAC spoofing logic, review all affected platforms and include tests or manual validation notes for platform branches that cannot be exercised locally.
 
