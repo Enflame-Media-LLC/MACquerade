@@ -35,6 +35,14 @@ jobs:
     - name: Run Microsoft Security DevOps
       uses: microsoft/security-devops-action@08976cb623803b1b36d7112d4ff9f59eae704de0 # v1.12.0
       id: msdo
+      with:
+        # MSDO's applicable default tools for this repo are antimalware, checkov,
+        # eslint, and templateanalyzer. ESLint is intentionally excluded: it is
+        # already covered by the dedicated ESLint SARIF workflow (eslint.yml), and
+        # the MSDO-bundled ESLint hard-fails on this repo (exit code 2, "all files
+        # matching **/*.{js,ts} are ignored") which breaks the whole OSSAR gate.
+        # This keeps the full working scanner set enabled without the broken tool.
+        tools: antimalware,checkov,templateanalyzer
       env:
         GDN_ESLINT_DISABLEDEFAULTCONFIGURATIONFILE: "true"
 
