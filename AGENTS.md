@@ -8,7 +8,7 @@ Use `CLAUDE.md` as the companion source of project guidance when it is present. 
 
 - Runtime: Node.js `>=24` per `package.json`. CI also runs Node 22 for compatibility.
 - Package manager: Yarn 4.14.1 via Corepack (`packageManager: yarn@4.14.1`).
-- Module system: ESM — ECMAScript Modules (`"type": "module"`).
+Write it as "**ESM (Full Name Here)**" on first mention.
 - Source: TypeScript in `src/`; built output and declarations go to `dist/`.
 - CLI binary: `dist/cli.js`, installed as `macquerade`; `spoof` is retained as a compatibility alias.
 - Build stack: `tsup` bundles ESM for Node 24, then `tsc --emitDeclarationOnly` emits declarations.
