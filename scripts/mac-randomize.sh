@@ -1,16 +1,19 @@
 #!/bin/bash
 set -e
 
-# Reconnect stdin to the terminal when run via pipe (e.g., curl | bash).
-# Bash has already buffered the full script from the pipe by this point.
-if [ ! -t 0 ]; then
-  exec < /dev/tty
-fi
+# NOTE: Do not globally redirect stdin to the terminal here (no top-level
+# `exec` from the tty device). When this script is delivered via a pipe (`curl ... | bash`), bash reads it
+# incrementally from stdin, so taking over fd 0 can swallow the not-yet-read
+# remainder of the script or hand child commands EOF instead of the terminal.
+# Every interactive prompt below reads from /dev/tty explicitly, which keeps the
+# script source and user input on separate descriptors.
 
 echo "=== MACquerade MAC Randomizer ==="
 echo ""
 
 MIN_NODE_MAJOR=24
+HOMEBREW_INSTALL_COMMIT=280cbc9adffcbdef15dd1c9d991ef2d1dd7cfc9c
+HOMEBREW_INSTALL_SHA256=f3e91784ffeda32bc397de7acc1154724cc47522a459c9ac656cca176eeba457
 OS_UNAME=$(uname -s 2>/dev/null || echo unknown)
 case "$OS_UNAME" in
   Darwin*)
@@ -39,15 +42,22 @@ echo ""
 # Ensure cleanup on exit
 SPOOF_DIR=""
 INTERFACES_JSON_PATH=""
+HOMEBREW_INSTALL_SCRIPT=""
 cleanup() {
   # Restore cursor visibility
   printf '\033[?25h' 2>/dev/null || true
   # Restore terminal settings if saved
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
+  if [ -n "$SAVED_TTY" ]; then
+    stty "$SAVED_TTY" < /dev/tty 2>/dev/null || true
+  fi
   # Clean up temp directory
-  [ -n "$SPOOF_DIR" ] && rm -rf "$SPOOF_DIR" 2>/dev/null || true
+  if [ -n "$SPOOF_DIR" ]; then rm -rf "$SPOOF_DIR" 2>/dev/null || true; fi
   # Clean up temporary interface data
-  [ -n "$INTERFACES_JSON_PATH" ] && rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true
+  if [ -n "$INTERFACES_JSON_PATH" ]; then rm -f "$INTERFACES_JSON_PATH" 2>/dev/null || true; fi
+  # Clean up downloaded installer
+  if [ -n "$HOMEBREW_INSTALL_SCRIPT" ]; then
+    rm -f "$HOMEBREW_INSTALL_SCRIPT" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -216,7 +226,7 @@ choose_option() {
   done
 
   printf '\033[?25h'
-  [ -n "$SAVED_TTY" ] && stty "$SAVED_TTY" 2>/dev/null || true
+  if [ -n "$SAVED_TTY" ]; then stty "$SAVED_TTY" 2>/dev/null || true; fi
   SAVED_TTY=""
 
   return "$choice"
@@ -298,7 +308,26 @@ install_or_update_homebrew() {
   echo "Installing Homebrew (the package manager)..."
   echo "You may be asked for your login password."
   echo ""
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  local actual_sha
+  HOMEBREW_INSTALL_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/homebrew-install.XXXXXX")
+  curl -fsSL "https://raw.githubusercontent.com/Homebrew/install/$HOMEBREW_INSTALL_COMMIT/install.sh" -o "$HOMEBREW_INSTALL_SCRIPT"
+  if command -v shasum > /dev/null 2>&1; then
+    actual_sha=$(shasum -a 256 "$HOMEBREW_INSTALL_SCRIPT" | awk '{print $1}')
+  elif command -v sha256sum > /dev/null 2>&1; then
+    actual_sha=$(sha256sum "$HOMEBREW_INSTALL_SCRIPT" | awk '{print $1}')
+  else
+    echo ""
+    echo "Error: Cannot verify the Homebrew installer because no SHA-256 tool was found."
+    exit 1
+  fi
+
+  if [ "$actual_sha" != "$HOMEBREW_INSTALL_SHA256" ]; then
+    echo ""
+    echo "Error: Homebrew installer checksum verification failed."
+    exit 1
+  fi
+
+  /bin/bash "$HOMEBREW_INSTALL_SCRIPT" < /dev/tty
   refresh_homebrew_shellenv
 
   if ! command -v brew > /dev/null 2>&1; then
@@ -452,7 +481,7 @@ enable_corepack() {
       fi
       ;;
     *)
-      if sudo corepack enable > /dev/null; then
+      if sudo corepack enable > /dev/null < /dev/tty; then
         refresh_platform_path
         return 0
       fi
@@ -548,9 +577,9 @@ INTERFACES_JSON_PATH=$(mktemp "${TMPDIR:-/tmp}/macquerade-interfaces.XXXXXX")
 printf '%s' "$interfaces_json" > "$INTERFACES_JSON_PATH"
 
 while IFS=$'\t' read -r port device addr; do
-  IFACE_PORTS[$iface_count]="$port"
-  IFACE_DEVICES[$iface_count]="$device"
-  IFACE_ADDRS[$iface_count]="$addr"
+  IFACE_PORTS[iface_count]="$port"
+  IFACE_DEVICES[iface_count]="$device"
+  IFACE_ADDRS[iface_count]="$addr"
   iface_count=$((iface_count + 1))
 done < <(node - "$INTERFACES_JSON_PATH" <<'NODE'
 const fs = require('fs')
@@ -579,7 +608,7 @@ fi
 # Build display labels
 IFACE_LABELS=()
 for ((i=0; i<iface_count; i++)); do
-  IFACE_LABELS[$i]="${IFACE_PORTS[$i]} (${IFACE_DEVICES[$i]}) — ${IFACE_ADDRS[$i]}"
+  IFACE_LABELS[i]="${IFACE_PORTS[$i]} (${IFACE_DEVICES[$i]}) — ${IFACE_ADDRS[$i]}"
 done
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -625,7 +654,7 @@ draw_picker() {
 # Initialize selection state
 IFACE_SELECTED=()
 for ((i=0; i<iface_count; i++)); do
-  IFACE_SELECTED[$i]=0
+  IFACE_SELECTED[i]=0
 done
 
 cursor=0
@@ -636,7 +665,7 @@ echo "  ↑/↓ navigate  ·  Space select  ·  Enter confirm  ·  Esc/q cancel"
 echo ""
 
 # Save terminal settings and switch to raw mode
-SAVED_TTY=$(stty -g 2>/dev/null) || SAVED_TTY=""
+SAVED_TTY=$(stty -g < /dev/tty 2>/dev/null) || SAVED_TTY=""
 printf '\033[?25l'  # Hide cursor
 
 # First draw
@@ -678,9 +707,9 @@ while true; do
       ;;
     ' ')  # Spacebar — toggle selection
       if [ "${IFACE_SELECTED[$cursor]}" -eq 0 ]; then
-        IFACE_SELECTED[$cursor]=1
+        IFACE_SELECTED[cursor]=1
       else
-        IFACE_SELECTED[$cursor]=0
+        IFACE_SELECTED[cursor]=0
       fi
       ;;
     '')  # Enter — confirm
