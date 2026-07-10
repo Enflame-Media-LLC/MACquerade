@@ -268,7 +268,7 @@ function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
   const details: string[] = []
   while (true) {
     const result = /(?:Hardware Port|Device|Ethernet Address): (.+)/.exec(output)
-    if (!result || !result[1]) {
+    if (!result?.[1]) {
       break
     }
     details.push(result[1])
@@ -520,7 +520,7 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   const details: string[] = []
   while (true) {
     const result = /(.*?)HWaddr(.*)/mi.exec(output)
-    if (!result || !result[1] || !result[2]) {
+    if (!result?.[1] || !result?.[2]) {
       break
     }
     details.push(result[1], result[2])
@@ -687,7 +687,7 @@ function findInterfacesWin32(targets: string[]): NetworkInterface[] {
  */
 function findInterface(target: string): NetworkInterface | undefined {
   const interfaces = findInterfaces([target])
-  return interfaces && interfaces[0]
+  return interfaces?.[0]
 }
 
 /**
@@ -722,10 +722,10 @@ function getInterfaceMAC(device: string): string | null {
  */
 function setInterfaceMAC(device: string, mac: string, port?: string): void {
   if (!DEVICE_NAME_RE.test(device)) {
-    throw new Error(device + ' is not a valid device name')
+    throw new Error(`${device} is not a valid device name`)
   }
   if (!MAC_VALIDATION_RE.exec(mac)) {
-    throw new Error(mac + ' is not a valid MAC address')
+    throw new Error(`${mac} is not a valid MAC address`)
   }
   mac = normalize(mac) ?? mac
 
@@ -953,7 +953,7 @@ async function findInterfacesDarwinAsync(targets: string[], options: AsyncOption
   const details: string[] = []
   while (true) {
     const result = /(?:Hardware Port|Device|Ethernet Address): (.+)/.exec(output)
-    if (!result || !result[1]) {
+    if (!result?.[1]) {
       break
     }
     details.push(result[1])
@@ -1065,7 +1065,7 @@ async function findInterfacesLinuxIfconfigAsync(targets: string[], options: Asyn
   const details: string[] = []
   while (true) {
     const result = /(.*?)HWaddr(.*)/mi.exec(output)
-    if (!result || !result[1] || !result[2]) {
+    if (!result?.[1] || !result?.[2]) {
       break
     }
     details.push(result[1], result[2])
@@ -1158,7 +1158,7 @@ async function findInterfacesWin32Async(targets: string[], options: AsyncOptions
  */
 async function findInterfaceAsync(target: string, options: AsyncOptions = {}): Promise<NetworkInterface | undefined> {
   const interfaces = await findInterfacesAsync([target], options)
-  return interfaces && interfaces[0]
+  return interfaces?.[0]
 }
 
 /**
@@ -1247,10 +1247,10 @@ async function getInterfaceMACAsync(device: string, options: AsyncOptions = {}):
  */
 async function setInterfaceMACAsync(device: string, mac: string, port?: string, options: AsyncOptions = {}): Promise<void> {
   if (!DEVICE_NAME_RE.test(device)) {
-    throw new Error(device + ' is not a valid device name')
+    throw new Error(`${device} is not a valid device name`)
   }
   if (!MAC_VALIDATION_RE.exec(mac)) {
-    throw new Error(mac + ' is not a valid MAC address')
+    throw new Error(`${mac} is not a valid MAC address`)
   }
   mac = normalize(mac) ?? mac
 
@@ -1357,7 +1357,7 @@ async function setInterfaceMACWin32Async(device: string, mac: string, options: A
     if (found) return
   }
 
-  throw new Error('Unable to find registry key for network adapter: ' + device)
+  throw new Error(`Unable to find registry key for network adapter: ${device}`)
 }
 
 function registryValue(values: Winreg.RegistryItem[], name: string): string | undefined {

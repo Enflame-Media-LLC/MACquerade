@@ -363,9 +363,9 @@ describe('setInterfaceMAC linux', () => {
     expect(upCmd).toBeDefined()
 
     // Verify order: down should come before address, address before up
-    const downIdx = commandsCalled.indexOf(downCmd!)
-    const addrIdx = commandsCalled.indexOf(addressCmd!)
-    const upIdx = commandsCalled.indexOf(upCmd!)
+    const downIdx = commandsCalled.indexOf(downCmd as string)
+    const addrIdx = commandsCalled.indexOf(addressCmd as string)
+    const upIdx = commandsCalled.indexOf(upCmd as string)
 
     expect(downIdx).toBeLessThan(addrIdx)
     expect(addrIdx).toBeLessThan(upIdx)
@@ -830,8 +830,8 @@ describe('setInterfaceMACAsync win32 registry matching', () => {
       }
     ])
     expect(netshCalls).toEqual([
-      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi disable',
-      [windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92)) + ' interface set interface Wi-Fi enable'
+      `${[windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92))} interface set interface Wi-Fi disable`,
+      `${[windowsSystem32, 'netsh.exe'].join(String.fromCharCode(92))} interface set interface Wi-Fi enable`
     ])
   })
 })

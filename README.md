@@ -8,7 +8,7 @@
 [downloads-image]: https://img.shields.io/npm/dm/macquerade.svg
 [downloads-url]: https://npmjs.org/package/macquerade
 
-### Easily spoof your MAC address on macOS, Linux & Windows
+## Easily spoof your MAC address on macOS, Linux & Windows
 
 A modern, TypeScript Node.js CLI for changing MAC addresses. Maintained by
 **[TheJACKedViking](https://github.com/TheJACKedViking)** — credit and inspiration to
@@ -218,7 +218,7 @@ Show the help screen.
 | `--timeout=<ms>` | Per-operation timeout in milliseconds (default 30000) |
 | `--version` | Print package version |
 
-**Exit codes**
+### Exit codes
 
 | Code | Meaning |
 |------|---------|
