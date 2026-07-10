@@ -1,7 +1,7 @@
 <script setup lang="ts"></script>
 
 <template>
-  <svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path
       d="M6 14c0-5 5-8 26-8s26 3 26 8c0 14-11 24-26 24S6 28 6 14Z"
       stroke="var(--accent)"
