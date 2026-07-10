@@ -1,22 +1,86 @@
 /*! MACquerade. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 import cp from 'node:child_process'
 import path from 'node:path'
+import type { ExecFileOptionsWithStringEncoding, ExecFileSyncOptions } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomInt as cryptoRandomInt } from 'node:crypto'
 import Winreg from 'winreg'
 import type { NetworkInterface, RandomFunction, AsyncOptions } from './types.js'
 
-// Promisified exec functions for async operations
-const execAsync = promisify(cp.exec)
+// Promisified execFile for async operations
 const execFileAsync = promisify(cp.execFile)
 
 // Default timeout for async operations (30 seconds)
 const DEFAULT_TIMEOUT = 30000
-const DEFAULT_WINDOWS_DIR = 'C:\\Windows'
+// Trusted Windows system root. This is deliberately hardcoded rather than read
+// from process.env.SystemRoot / process.env.windir: this module may run in an
+// elevated process, and those environment variables are attacker-controllable,
+// so trusting them to locate "trusted" system binaries (ipconfig/getmac/netsh)
+// or to build the sanitized PATH would reintroduce the very path-hijacking this
+// module defends against. C:\Windows is the conventional system root on
+// effectively all Windows installs; non-standard system drives are intentionally
+// not supported here in exchange for not trusting the ambient environment.
+const WINDOWS_SYSTEM_ROOT = 'C:\\Windows'
+const DEFAULT_WINDOWS_DIR = WINDOWS_SYSTEM_ROOT
 const WINDOWS_SYSTEM32_DIR = 'System32'
 const GETMAC_EXE = 'getmac.exe'
 const IPCONFIG_EXE = 'ipconfig.exe'
 const NETSH_EXE = 'netsh.exe'
+
+// Restrict command lookup to trusted system directories so privileged callers
+// are not exposed to attacker-controlled PATH entries.
+const TRUSTED_POSIX_SYSTEM_PATH = '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+const WINDOWS_SYSTEM32_PATH = path.win32.join(WINDOWS_SYSTEM_ROOT, WINDOWS_SYSTEM32_DIR)
+const TRUSTED_WINDOWS_SYSTEM_PATH = [
+  WINDOWS_SYSTEM32_PATH,
+  WINDOWS_SYSTEM_ROOT,
+  path.win32.join(WINDOWS_SYSTEM32_PATH, 'Wbem')
+].join(';')
+const SAFE_WINDOWS_COMSPEC = path.win32.join(WINDOWS_SYSTEM32_PATH, 'cmd.exe')
+
+// Environment variables that can alter how a child process loads code or resolves
+// commands, independent of PATH. These are stripped from the sanitized env so an
+// attacker who controls the parent environment of an elevated invocation cannot
+// inject code into the privileged system tools we spawn (e.g. via LD_PRELOAD,
+// DYLD_INSERT_LIBRARIES, BASH_FUNC_* shell functions, NODE_OPTIONS, or the glibc
+// loader/config search paths such as GCONV_PATH/LOCPATH). Modelled on the set sudo
+// removes by default (env_delete).
+const DANGEROUS_ENV_KEYS = new Set([
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'LD_AUDIT',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'NODE_OPTIONS',
+  'BASH_ENV',
+  'ENV',
+  // glibc loader / name-resolution / locale search paths that can load attacker code
+  'GCONV_PATH',
+  'GETCONF_DIR',
+  'LOCPATH',
+  'NLSPATH',
+  'HOSTALIASES',
+  'RESOLV_HOST_CONF',
+  'RES_OPTIONS',
+  'LOCALDOMAIN',
+  'TZDIR',
+  // shell field splitting / prompt hooks (defensive even though we use execFile)
+  'IFS',
+  'PS4'
+])
+
+// Environment variables we pin to trusted values rather than inherit. Compared
+// case-insensitively because Windows treats env names case-insensitively, so an
+// attacker could otherwise smuggle e.g. `SYSTEMROOT` past a case-sensitive copy.
+const PINNED_ENV_KEYS_LOWER = new Set(['path', 'comspec', 'systemroot', 'windir'])
+
+function isDangerousEnvKey(key: string): boolean {
+  return DANGEROUS_ENV_KEYS.has(key) ||
+    key.startsWith('LD_') ||
+    key.startsWith('DYLD_') ||
+    key.startsWith('BASH_FUNC_')
+}
 
 // Deprecation warning tracking (show once per function)
 const deprecationWarnings = new Set<string>()
@@ -35,12 +99,62 @@ function warnDeprecated(fnName: string): void {
 }
 
 /**
- * Create exec options with timeout and abort signal support
+ * Create exec options with timeout, abort signal, and safe PATH support.
  */
-function createExecOptions(options: AsyncOptions = {}): { timeout: number; signal?: AbortSignal } {
-  return {
+function createCommandEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const isWindows = process.platform === 'win32'
+  const trustedPath = isWindows
+    ? TRUSTED_WINDOWS_SYSTEM_PATH
+    : TRUSTED_POSIX_SYSTEM_PATH
+
+  // Start from a copy of the parent env with code-injection vectors removed and
+  // any inherited copy of the pinned keys dropped, then pin PATH/Path (and the
+  // Windows system-root vars + ComSpec) to trusted values. SystemRoot/windir are
+  // pinned, not inherited, because the trusted system root is hardcoded precisely
+  // because those variables are attacker-controllable in an elevated context.
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (isDangerousEnvKey(key) || PINNED_ENV_KEYS_LOWER.has(key.toLowerCase())) {
+      continue
+    }
+    env[key] = value
+  }
+
+  env.PATH = trustedPath
+  env.Path = trustedPath
+  if (isWindows) {
+    env.ComSpec = SAFE_WINDOWS_COMSPEC
+    env.SystemRoot = WINDOWS_SYSTEM_ROOT
+    env.windir = WINDOWS_SYSTEM_ROOT
+  }
+
+  return env
+}
+
+function isMissingCommandError(err: unknown): boolean {
+  const e = err as NodeJS.ErrnoException & { status?: number }
+  return e.code === 'ENOENT' || e.status === 127
+}
+
+function createExecOptions(options: AsyncOptions = {}): ExecFileOptionsWithStringEncoding {
+  const execOptions: ExecFileOptionsWithStringEncoding = {
     timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    signal: options.signal
+    env: createCommandEnv(),
+    encoding: 'utf8'
+  }
+
+  if (options.signal) {
+    execOptions.signal = options.signal
+  }
+
+  return execOptions
+}
+
+function createExecFileSyncOptions(options: ExecFileSyncOptions = {}): ExecFileSyncOptions {
+  return {
+    timeout: DEFAULT_TIMEOUT,
+    ...options,
+    env: createCommandEnv(options.env)
   }
 }
 
@@ -82,7 +196,7 @@ let preferIfconfig = false
  */
 function hasIpCommand(): boolean {
   try {
-    cp.execSync('which ip', { stdio: 'pipe' })
+    cp.execFileSync('which', ['ip'], createExecFileSyncOptions({ stdio: 'pipe' }))
     return true
   } catch {
     return false
@@ -91,12 +205,11 @@ function hasIpCommand(): boolean {
 
 /**
  * Check if the `ip` command (iproute2) is available on the system (async).
- * Note: Uses 'which' command which is a safe, hardcoded string (no user input).
+ * Uses execFile with a sanitized PATH so command lookup is limited to trusted directories.
  */
 async function hasIpCommandAsync(options: AsyncOptions = {}): Promise<boolean> {
   try {
-    // Safe: hardcoded command, no user input
-    await execAsync('which ip', createExecOptions(options))
+    await execFileAsync('which', ['ip'], createExecOptions(options))
     return true
   } catch {
     return false
@@ -150,7 +263,7 @@ function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
   // - the device associated with this port, if any,
   // - the MAC address, if any, otherwise 'N/A'
 
-  let output = cp.execSync('networksetup -listallhardwareports').toString()
+  let output = cp.execFileSync('networksetup', ['-listallhardwareports'], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
 
   const details: string[] = []
   while (true) {
@@ -203,10 +316,17 @@ function findInterfacesDarwin(targets: string[]): NetworkInterface[] {
  * Uses `ip` command if available (and not preferring ifconfig), falls back to `ifconfig`.
  */
 function findInterfacesLinux(targets: string[]): NetworkInterface[] {
-  if (!preferIfconfig && getIpCommandAvailable()) {
-    return findInterfacesLinuxIp(targets)
+  try {
+    if (!preferIfconfig && getIpCommandAvailable()) {
+      return findInterfacesLinuxIp(targets)
+    }
+    return findInterfacesLinuxIfconfig(targets)
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
-  return findInterfacesLinuxIfconfig(targets)
 }
 
 /**
@@ -214,7 +334,7 @@ function findInterfacesLinux(targets: string[]): NetworkInterface[] {
  * This is the modern approach for Linux distributions that don't include net-tools.
  */
 function findInterfacesLinuxIp(targets: string[]): NetworkInterface[] {
-  const output = cp.execSync('ip link show', { stdio: 'pipe' }).toString()
+  const output = cp.execFileSync('ip', ['link', 'show'], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
   const lines = output.split('\n')
 
   const interfaces: NetworkInterface[] = []
@@ -302,7 +422,7 @@ function getInterfaceMACLinux(device: string): string | null {
   // Try ip command first if available
   if (!preferIfconfig) {
     try {
-      const output = cp.execFileSync('ip', ['link', 'show', device], { stdio: 'pipe' }).toString()
+      const output = cp.execFileSync('ip', ['link', 'show', device], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
       const macMatch = /link\/ether\s+([0-9a-f:]+)/i.exec(output)
       const mac = macMatch ? normalize(macMatch[1]) ?? null : null
       if (mac) return mac
@@ -312,7 +432,7 @@ function getInterfaceMACLinux(device: string): string | null {
   }
   // Fallback to ifconfig
   try {
-    const output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
+    const output = cp.execFileSync('ifconfig', [device], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
     const address = MAC_ADDRESS_RE.exec(output)
     return address ? normalize(address[0]) ?? null : null
   } catch {
@@ -325,7 +445,7 @@ function getInterfaceMACLinux(device: string): string | null {
  */
 function getInterfaceMACWin32(device: string): string | null {
   try {
-    const output = cp.execFileSync(getWindowsSystem32Executable(GETMAC_EXE), ['/v', '/fo', 'csv'], { stdio: 'pipe' }).toString()
+    const output = cp.execFileSync(getWindowsSystem32Executable(GETMAC_EXE), ['/v', '/fo', 'csv'], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
     const lines = output.trim().split('\n')
 
     // Skip header line, parse data lines
@@ -395,7 +515,7 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   // - the adapter name/device associated with this, if any,
   // - the MAC address, if any
 
-  let output = cp.execSync('ifconfig', { stdio: 'pipe' }).toString()
+  let output = cp.execFileSync('ifconfig', [], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
 
   const details: string[] = []
   while (true) {
@@ -449,78 +569,114 @@ function findInterfacesLinuxIfconfig(targets: string[]): NetworkInterface[] {
   return interfaces
 }
 
+/**
+ * Returns true when an interface should be included in the result set: either no
+ * targets were requested (return everything) or the interface matches one.
+ */
+function win32InterfaceMatches(it: NetworkInterface, targets: string[]): boolean {
+  if (targets.length === 0) {
+    return true
+  }
+  return targets.some(target =>
+    target === it.port.toLowerCase() || target === it.device.toLowerCase())
+}
+
+/**
+ * Begin a fresh interface record for an `ipconfig /all` adapter header line,
+ * extracting the device name when present.
+ */
+function startWin32Interface(line: string): NetworkInterface {
+  const it: NetworkInterface = {
+    port: '',
+    device: '',
+    address: null,
+    currentAddress: null
+  }
+  const result = /adapter (.+?):/.exec(line)
+  if (result) {
+    it.device = result[1]
+  }
+  return it
+}
+
+/**
+ * Apply a single non-header `ipconfig /all` line to the current interface record,
+ * filling in its description. Address handling differs between the sync and async
+ * code paths (current-MAC lookup), so it is handled by the callers.
+ */
+function applyWin32DescriptionLine(it: NetworkInterface, line: string): void {
+  const result = /description.+?:(.*)/mi.exec(line)
+  if (result) {
+    it.description = result[1].trim()
+  }
+}
+
+const WIN32_ADAPTER_HEADER_RE = /^[A-Z]/
+const WIN32_PHYSICAL_ADDRESS_RE = /Physical Address.+?:(.*)/mi
+
+/**
+ * Process one `ipconfig /all` line for the synchronous parser: starts a new
+ * interface on an adapter header (flushing the previous one when it matches),
+ * otherwise fills in the current interface's address/description. Returns the
+ * interface record that subsequent lines should apply to.
+ */
+/**
+ * Apply a `Physical Address` line to the current interface (sync path), resolving
+ * the current MAC via getmac with a fallback to the hardware address. Returns
+ * true when the line was an address line and was consumed.
+ */
+function applyWin32AddressLine(it: NetworkInterface, line: string): boolean {
+  const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+  if (!addressMatch) {
+    return false
+  }
+  it.address = normalize(addressMatch[1].trim()) ?? null
+  // Get current MAC using getmac command, fallback to hardware address
+  it.currentAddress = getInterfaceMACWin32(it.device) || it.address
+  return true
+}
+
+function readWin32InterfaceLine(
+  it: NetworkInterface | null,
+  line: string,
+  interfaces: NetworkInterface[],
+  targets: string[]
+): NetworkInterface | null {
+  if (WIN32_ADAPTER_HEADER_RE.test(line)) {
+    if (it !== null && win32InterfaceMatches(it, targets)) {
+      interfaces.push(it)
+    }
+    it = startWin32Interface(line)
+  }
+
+  if (!it) {
+    return it
+  }
+
+  if (!applyWin32AddressLine(it, line)) {
+    applyWin32DescriptionLine(it, line)
+  }
+
+  return it
+}
+
 function findInterfacesWin32(targets: string[]): NetworkInterface[] {
-  const output = cp.execFileSync(getWindowsSystem32Executable(IPCONFIG_EXE), ['/all'], { stdio: 'pipe' }).toString()
+  const output = cp.execFileSync(
+    getWindowsSystem32Executable(IPCONFIG_EXE),
+    ['/all'],
+    createExecFileSyncOptions({ stdio: 'pipe' })
+  ).toString()
 
   const interfaces: NetworkInterface[] = []
-  const lines = output.split('\n')
   let it: NetworkInterface | null = null
-  for (let i = 0; i < lines.length; i++) {
-    // Check if new device
-    let result: RegExpExecArray | null
-    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
-      if (it !== null) {
-        if (targets.length === 0) {
-          // Not trying to match anything in particular, return everything.
-          interfaces.push(it)
-        } else {
-          for (let j = 0; j < targets.length; j++) {
-            const target = targets[j]
-            if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-              interfaces.push(it)
-              break
-            }
-          }
-        }
-      }
 
-      it = {
-        port: '',
-        device: '',
-        address: null,
-        currentAddress: null
-      }
-
-      result = /adapter (.+?):/.exec(lines[i])
-      if (!result) {
-        continue
-      }
-
-      it.device = result[1]
-    }
-
-    if (!it) {
-      continue
-    }
-
-    // Try to find address
-    result = /Physical Address.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.address = normalize(result[1].trim()) ?? null
-      // Get current MAC using getmac command, fallback to hardware address
-      it.currentAddress = getInterfaceMACWin32(it.device) || it.address
-      continue
-    }
-
-    // Try to find description
-    result = /description.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.description = result[1].trim()
-    }
+  for (const line of output.split('\n')) {
+    it = readWin32InterfaceLine(it, line, interfaces, targets)
   }
 
   // Push the final interface (the loop only pushes when the *next* header is encountered)
-  if (it !== null) {
-    if (targets.length === 0) {
-      interfaces.push(it)
-    } else {
-      for (const target of targets) {
-        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-          interfaces.push(it)
-          break
-        }
-      }
-    }
+  if (it !== null && win32InterfaceMatches(it, targets)) {
+    interfaces.push(it)
   }
 
   return interfaces
@@ -544,7 +700,7 @@ function getInterfaceMAC(device: string): string | null {
   } else if (process.platform === 'darwin') {
     let output: string
     try {
-      output = cp.execFileSync('ifconfig', [device], { stdio: 'pipe' }).toString()
+      output = cp.execFileSync('ifconfig', [device], createExecFileSyncOptions({ stdio: 'pipe' })).toString()
     } catch {
       return null
     }
@@ -580,8 +736,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
       // Turn off the device, assuming it's an airport device, to disassociate from any
       // networks and then turn it back on so we can change the MAC.
       try {
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'], createExecFileSyncOptions())
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'], createExecFileSyncOptions())
       } catch (err) {
         throw new Error('Unable to power cycle wifi device', { cause: err })
       }
@@ -589,7 +745,7 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
 
     // Change the MAC.
     try {
-      cp.execFileSync('ifconfig', [device, 'ether', mac])
+      cp.execFileSync('ifconfig', [device, 'ether', mac], createExecFileSyncOptions())
     } catch (err) {
       throw new Error('Unable to change MAC address', { cause: err })
     }
@@ -597,8 +753,8 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
     // Restart airport so it will associate with known networks (if any)
     if (isWirelessPort) {
       try {
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'])
-        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'])
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'off'], createExecFileSyncOptions())
+        cp.execFileSync('networksetup', ['-setairportpower', device, 'on'], createExecFileSyncOptions())
       } catch (err) {
         throw new Error('Unable to restart wifi device', { cause: err })
       }
@@ -609,17 +765,17 @@ function setInterfaceMAC(device: string, mac: string, port?: string): void {
     if (!preferIfconfig && getIpCommandAvailable()) {
       // Use ip command (iproute2 - modern)
       try {
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'down'])
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'address', mac])
-        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'up'])
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'down'], createExecFileSyncOptions())
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'address', mac], createExecFileSyncOptions())
+        cp.execFileSync('ip', ['link', 'set', 'dev', device, 'up'], createExecFileSyncOptions())
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
     } else {
       // Use ifconfig command (net-tools - legacy)
       try {
-        cp.execFileSync('ifconfig', [device, 'down', 'hw', 'ether', mac])
-        cp.execFileSync('ifconfig', [device, 'up'])
+        cp.execFileSync('ifconfig', [device, 'down', 'hw', 'ether', mac], createExecFileSyncOptions())
+        cp.execFileSync('ifconfig', [device, 'up'], createExecFileSyncOptions())
       } catch (err) {
         throw new Error('Unable to change MAC address', { cause: err })
       }
@@ -791,8 +947,7 @@ async function findInterfacesAsync(targets?: string[], options: AsyncOptions = {
 }
 
 async function findInterfacesDarwinAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('networksetup -listallhardwareports', createExecOptions(options))
+  const { stdout } = await execFileAsync('networksetup', ['-listallhardwareports'], createExecOptions(options))
   let output = stdout
 
   const details: string[] = []
@@ -839,16 +994,22 @@ async function findInterfacesDarwinAsync(targets: string[], options: AsyncOption
 }
 
 async function findInterfacesLinuxAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  const ipAvailable = await getIpCommandAvailableAsync(options)
-  if (!preferIfconfig && ipAvailable) {
-    return findInterfacesLinuxIpAsync(targets, options)
+  try {
+    const ipAvailable = await getIpCommandAvailableAsync(options)
+    if (!preferIfconfig && ipAvailable) {
+      return await findInterfacesLinuxIpAsync(targets, options)
+    }
+    return await findInterfacesLinuxIfconfigAsync(targets, options)
+  } catch (err) {
+    if (isMissingCommandError(err)) {
+      return []
+    }
+    throw err
   }
-  return findInterfacesLinuxIfconfigAsync(targets, options)
 }
 
 async function findInterfacesLinuxIpAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('ip link show', createExecOptions(options))
+  const { stdout } = await execFileAsync('ip', ['link', 'show'], createExecOptions(options))
   const lines = stdout.split('\n')
 
   const interfaces: NetworkInterface[] = []
@@ -898,8 +1059,7 @@ async function findInterfacesLinuxIpAsync(targets: string[], options: AsyncOptio
 }
 
 async function findInterfacesLinuxIfconfigAsync(targets: string[], options: AsyncOptions = {}): Promise<NetworkInterface[]> {
-  // Safe: hardcoded command, no user input
-  const { stdout } = await execAsync('ifconfig', createExecOptions(options))
+  const { stdout } = await execFileAsync('ifconfig', [], createExecOptions(options))
   let output = stdout
 
   const details: string[] = []
@@ -961,70 +1121,33 @@ async function findInterfacesWin32Async(targets: string[], options: AsyncOptions
   )
 
   const interfaces: NetworkInterface[] = []
-  const lines = stdout.split('\n')
   let it: NetworkInterface | null = null
 
-  for (let i = 0; i < lines.length; i++) {
-    let result: RegExpExecArray | null
-    if (lines[i].substring(0, 1).match(/[A-Z]/)) {
-      if (it !== null) {
-        if (targets.length === 0) {
-          interfaces.push(it)
-        } else {
-          for (let j = 0; j < targets.length; j++) {
-            const target = targets[j]
-            if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-              interfaces.push(it)
-              break
-            }
-          }
-        }
+  for (const line of stdout.split('\n')) {
+    if (WIN32_ADAPTER_HEADER_RE.test(line)) {
+      if (it !== null && win32InterfaceMatches(it, targets)) {
+        interfaces.push(it)
       }
-
-      it = {
-        port: '',
-        device: '',
-        address: null,
-        currentAddress: null
-      }
-
-      result = /adapter (.+?):/.exec(lines[i])
-      if (!result) {
-        continue
-      }
-
-      it.device = result[1]
+      it = startWin32Interface(line)
     }
 
     if (!it) {
       continue
     }
 
-    result = /Physical Address.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.address = normalize(result[1].trim()) ?? null
+    const addressMatch = WIN32_PHYSICAL_ADDRESS_RE.exec(line)
+    if (addressMatch) {
+      it.address = normalize(addressMatch[1].trim()) ?? null
       it.currentAddress = await getInterfaceMACWin32Async(it.device, options) || it.address
       continue
     }
 
-    result = /description.+?:(.*)/mi.exec(lines[i])
-    if (result) {
-      it.description = result[1].trim()
-    }
+    applyWin32DescriptionLine(it, line)
   }
 
   // Push the final interface (the loop only pushes when the *next* header is encountered)
-  if (it !== null) {
-    if (targets.length === 0) {
-      interfaces.push(it)
-    } else {
-      for (const target of targets) {
-        if (target === it.port.toLowerCase() || target === it.device.toLowerCase()) {
-          interfaces.push(it)
-          break
-        }
-      }
-    }
+  if (it !== null && win32InterfaceMatches(it, targets)) {
+    interfaces.push(it)
   }
 
   return interfaces

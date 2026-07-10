@@ -14,6 +14,11 @@ import { promisify } from 'node:util'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const windowsSystem32 = ['C:', 'Windows', 'System32'].join(String.fromCharCode(92))
+const windowsSafePath = [
+  windowsSystem32,
+  ['C:', 'Windows'].join(String.fromCharCode(92)),
+  [windowsSystem32, 'Wbem'].join(String.fromCharCode(92))
+].join(';')
 
 // Helper to load fixture files
 function loadFixture(platform: string, filename: string): string {
@@ -274,6 +279,68 @@ describe('findInterfacesLinuxIp', () => {
     expect(byPort.length).toBe(1)
     expect(byPort[0].device).toBe('wlan0')
   })
+
+  it('returns an empty list when Linux discovery tools are missing', async () => {
+    const mockExecSync = vi.fn((cmd: string) => {
+      const err = new Error(`missing command: ${cmd}`) as Error & { code?: string }
+      err.code = 'ENOENT'
+      throw err
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+
+    expect(spoof.findInterfaces()).toEqual([])
+  })
+
+  it('propagates Linux discovery execution failures', async () => {
+    const mockExecSync = vi.fn((cmd: string) => {
+      if (cmd === 'which ip') return Buffer.from('/usr/sbin/ip')
+      throw new Error('permission denied')
+    })
+
+    vi.resetModules()
+    vi.doMock('child_process', () => createChildProcessMock(mockExecSync))
+
+    const spoof = await import('../src/index.ts')
+
+    expect(() => spoof.findInterfaces()).toThrow('permission denied')
+  })
+
+  it('propagates async Linux discovery aborts', async () => {
+    const abortErr = new Error('aborted') as Error & { name: string; code?: string }
+    abortErr.name = 'AbortError'
+    abortErr.code = 'ABORT_ERR'
+
+    const execFile = vi.fn((
+      _cmd: string,
+      _args: string[],
+      _options: unknown,
+      callback: (err: Error | null, stdout: string, stderr: string) => void
+    ) => {
+      callback(abortErr, '', '')
+    })
+    const execFileSync = vi.fn()
+    const execSync = vi.fn(() => Buffer.from('/usr/sbin/ip'))
+
+    vi.resetModules()
+    vi.doMock('child_process', () => ({
+      default: {
+        execFile,
+        execFileSync,
+        execSync
+      },
+      execFile,
+      execFileSync,
+      execSync
+    }))
+
+    const spoof = await import('../src/index.ts')
+
+    await expect(spoof.findInterfacesAsync()).rejects.toThrow('aborted')
+  })
 })
 
 // =============================================================================
@@ -387,12 +454,26 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
       ['/v', '/fo', 'csv'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
   })
 
@@ -422,12 +503,26 @@ describe('findInterfacesWin32', () => {
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'ipconfig.exe'].join(String.fromCharCode(92)),
       ['/all'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
     expect(childProcessMock.execFileSync).toHaveBeenCalledWith(
       [windowsSystem32, 'getmac.exe'].join(String.fromCharCode(92)),
       ['/v', '/fo', 'csv'],
-      { stdio: 'pipe' }
+      expect.objectContaining({
+        stdio: 'pipe',
+        timeout: 30000,
+        env: expect.objectContaining({
+          PATH: windowsSafePath,
+          Path: windowsSafePath
+        })
+      })
     )
   })
 })

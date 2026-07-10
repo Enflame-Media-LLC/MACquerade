@@ -52,6 +52,7 @@ pnpm-lock.yaml
 .turbo/
 
 # Local AI / agent tooling (per-developer, not shared)
+.worktrees/
 /.claude
 /.serena
 .mcp.json

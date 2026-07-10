@@ -15,6 +15,12 @@ describe('scripts/mac-randomize.sh', () => {
     expect(interfaceParsingBlock).not.toContain('eval "$(')
     expect(interfaceParsingBlock).not.toMatch(/\beval\b/)
   })
+
+  it('does not globally redirect stdin away from the script source', () => {
+    expect(script).not.toContain('exec < /dev/tty')
+    expect(script).toContain('stty -g < /dev/tty')
+  })
+
   it('supports macOS, Linux, and Windows dependency bootstrapping', () => {
     expect(script).toContain('case "$OS_FAMILY" in')
     expect(script).toContain('darwin|linux')
@@ -32,6 +38,19 @@ describe('scripts/mac-randomize.sh', () => {
     expect(script).toContain('MIN_NODE_MAJOR=24')
     expect(script).toContain('node_major()')
     expect(script).toContain("process.versions.node.split('.')[0]")
+  })
+
+  it('verifies downloaded installer scripts before execution', () => {
+    expect(script).toContain('HOMEBREW_INSTALL_COMMIT=')
+    expect(script).toContain('HOMEBREW_INSTALL_SHA256=')
+    expect(script).not.toContain('raw.githubusercontent.com/Homebrew/install/HEAD/install.sh')
+    expect(script).toContain('shasum -a 256')
+    expect(script).toContain('sha256sum')
+    expect(script).toContain('Homebrew installer checksum verification failed')
+  })
+
+  it('allows privileged Corepack setup to prompt through the terminal', () => {
+    expect(script).toContain('sudo corepack enable > /dev/null < /dev/tty')
   })
 
   it('uses the platform-specific elevated runner when randomizing interfaces', () => {
