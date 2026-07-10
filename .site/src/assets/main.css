@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-base: #0a0a0f;
+  --color-surface: #14121f;
+  --color-surface-2: #1c1930;
+  --color-border: #2a2740;
+  --color-ink: #ece9f5;
+  --color-muted: #a09bb5;
+  --color-gold: #f5c451;
+  --color-violet: #8b5cf6;
+  --color-term-green: #4ade80;
+}
+
+:root {
+  --bg: var(--color-base);
+  --fg: var(--color-ink);
+  --card: var(--color-surface);
+  --card-2: var(--color-surface-2);
+  --border: var(--color-border);
+  --muted: var(--color-muted);
+  --accent: var(--color-gold);
+  --accent-2: var(--color-violet);
+  --term: var(--color-term-green);
+}
+
+:root:not(.dark) {
+  --bg: #f7f5f2;
+  --fg: #1a1626;
+  --card: #ffffff;
+  --card-2: #f0ecfa;
+  --border: #e2ddf0;
+  --muted: #6b6480;
+  --accent: #b8860b;
+  --accent-2: #7c3aed;
+  --term: #15803d;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
