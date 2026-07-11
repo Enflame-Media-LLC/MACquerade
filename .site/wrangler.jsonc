@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "macquerade-site",
-  "account_id": "81f483e6767ea3194467ecef42840f79",
+  // account_id intentionally omitted: Wrangler reads CLOUDFLARE_ACCOUNT_ID from
+  // the environment or a .env file in this directory (see .env.example).
   "compatibility_date": "2026-07-10",
   "assets": {
     "directory": "./dist",
