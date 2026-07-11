@@ -1,18 +1,18 @@
 {
-  "name": "macquerade",
+  "name": "MACquerade",
   "description": "MACquerade: easily spoof your MAC address in macOS, Linux & Windows",
-  "version": "2.0.4",
+  "version": "1.0.0",
   "author": {
-    "name": "Feross Aboukhadijeh",
-    "email": "feross@feross.org",
-    "url": "https://feross.org"
+    "name": "Enflame Media LLC",
+    "email": "howdy@enflamemedia.com",
+    "url": "https://macquerade.enflamemedia.com"
   },
   "bin": {
     "macquerade": "./dist/cli.js",
     "spoof": "./dist/cli.js"
   },
   "bugs": {
-    "url": "https://github.com/TheJACKedViking/spoof/issues"
+    "url": "https://github.com/Enflame-Media-LLC/MACquerade/issues"
   },
   "dependencies": {
     "chalk": "^5.6.2",
@@ -25,15 +25,15 @@
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/common-tags": "^1.8.4",
     "@types/minimist": "^1.2.5",
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.1.1",
     "@types/winreg": "^1.2.36",
-    "@vitest/coverage-v8": "^4.1.8",
-    "oxlint": "^1.68.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "oxlint": "^1.73.0",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
-  "homepage": "https://github.com/TheJACKedViking/spoof#readme",
+  "homepage": "https://github.com/Enflame-Media-LLC/MACquerade#readme",
   "keywords": [
     "MACquerade",
     "macquerade",
@@ -66,7 +66,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TheJACKedViking/spoof.git"
+    "url": "git+https://github.com/Enflame-Media-LLC/MACquerade.git"
   },
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly",
@@ -93,15 +93,7 @@
   "funding": [
     {
       "type": "github",
-      "url": "https://github.com/sponsors/feross"
-    },
-    {
-      "type": "patreon",
-      "url": "https://www.patreon.com/feross"
-    },
-    {
-      "type": "consulting",
-      "url": "https://feross.org/support"
+      "url": "https://github.com/sponsors/TheJACKedViking"
     }
   ],
   "resolutions": {
@@ -115,7 +107,7 @@
     "postcss": "^8.5.15",
     "ip-address": "^10.2.0"
   },
-  "packageManager": "yarn@4.16.0",
+  "packageManager": "yarn@4.17.1",
   "engines": {
     "node": ">=24"
   }
