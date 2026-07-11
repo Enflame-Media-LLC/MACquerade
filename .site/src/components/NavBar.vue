@@ -8,6 +8,7 @@ import {
   DialogOverlay,
   DialogContent,
   DialogTitle,
+  DialogDescription,
   DialogClose,
 } from 'reka-ui'
 import { useTheme } from '@/composables/useTheme'
@@ -76,6 +77,7 @@ const NPM = 'https://npmjs.org/package/macquerade'
               class="fixed right-0 top-0 z-50 h-full w-64 border-l border-[var(--border)] bg-[var(--card)] p-6"
             >
               <DialogTitle class="sr-only">Navigation menu</DialogTitle>
+              <DialogDescription class="sr-only">Site navigation links</DialogDescription>
               <div class="flex flex-col gap-4">
                 <RouterLink
                   v-for="l in links"

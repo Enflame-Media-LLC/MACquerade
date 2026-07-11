@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { Copy, Check } from 'lucide-vue-next'
 
 const props = defineProps<{ text: string; label?: string }>()
@@ -16,6 +16,10 @@ async function copy() {
     copied.value = false
   }
 }
+
+onUnmounted(() => {
+  if (timer) clearTimeout(timer)
+})
 </script>
 
 <template>

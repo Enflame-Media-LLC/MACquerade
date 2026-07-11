@@ -1,7 +1,7 @@
 import { useHead } from '@unhead/vue'
 
-export function usePageMeta(meta: { title: string; description: string }): void {
-  const fullTitle = `${meta.title} · MACquerade`
+export function usePageMeta(meta: { title: string; description: string; suffixTitle?: boolean }): void {
+  const fullTitle = meta.suffixTitle === false ? meta.title : `${meta.title} · MACquerade`
   try {
     useHead({
       title: fullTitle,
@@ -10,7 +10,7 @@ export function usePageMeta(meta: { title: string; description: string }): void 
         { property: 'og:title', content: fullTitle },
         { property: 'og:description', content: meta.description },
         { property: 'og:type', content: 'website' },
-        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:card', content: 'summary' },
       ],
     })
   } catch {

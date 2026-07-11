@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useTypewriter } from '@/composables/useTypewriter'
 import { useMacMorph } from '@/composables/useMacMorph'
 import TerminalWindow from './TerminalWindow.vue'
@@ -7,14 +7,20 @@ import TerminalWindow from './TerminalWindow.vue'
 const { output, done, start } = useTypewriter({ text: 'sudo macquerade randomize en0', speed: 55 })
 const { mac, morph } = useMacMorph({ steps: 14, interval: 70 })
 
+let stop: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   start()
-  const stop = setInterval(() => {
+  stop = setInterval(() => {
     if (done.value) {
-      clearInterval(stop)
+      if (stop) clearInterval(stop)
       morph()
     }
   }, 100)
+})
+
+onUnmounted(() => {
+  if (stop) clearInterval(stop)
 })
 </script>
 

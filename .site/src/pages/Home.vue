@@ -15,6 +15,14 @@ import FeatureCard from '@/components/FeatureCard.vue'
 import TerminalWindow from '@/components/TerminalWindow.vue'
 import CopyButton from '@/components/CopyButton.vue'
 import MaskLogo from '@/components/MaskLogo.vue'
+import { usePageMeta } from '@/composables/usePageMeta'
+
+usePageMeta({
+  title: 'MACquerade — Every device deserves a disguise',
+  description:
+    'A modern, cross-platform CLI to spoof your MAC address on macOS, Linux, and Windows. Vendor-aware randomization from a bundled OUI database, dry-run safety, and JSON output.',
+  suffixTitle: false,
+})
 
 const INSTALL = 'npm install -g macquerade'
 const ONELINER =

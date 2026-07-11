@@ -8,6 +8,7 @@ import {
   DialogOverlay,
   DialogContent,
   DialogTitle,
+  DialogDescription,
   DialogClose,
 } from 'reka-ui'
 import { docsNav } from '@/data/commands'
@@ -43,6 +44,7 @@ const open = ref(false)
             <DialogOverlay class="fixed inset-0 z-50 bg-black/60" />
             <DialogContent class="fixed left-0 top-0 z-50 h-full w-64 border-r border-[var(--border)] bg-[var(--card)] p-6">
               <DialogTitle class="sr-only">Docs menu</DialogTitle>
+              <DialogDescription class="sr-only">Documentation navigation links</DialogDescription>
               <nav class="flex flex-col gap-2">
                 <RouterLink
                   v-for="item in docsNav"
