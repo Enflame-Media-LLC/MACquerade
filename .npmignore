@@ -1,1 +1,40 @@
+# NOTE: package.json "files" (dist, src) is the primary allowlist and takes
+# precedence at the package root; this file is defense-in-depth in case that
+# field is ever removed.
+
+# Agent / workflow artifacts
+.claude/
+.superpowers/
+.remember/
+.zencoder/
+.zenflow/
+AGENTS.md
+CLAUDE.md
+docs/
+
+# Website (deployed separately to Cloudflare)
+.site/
+
+# Repo assets & CI
 img/
+.github/
+
+# Dev tooling, tests, and configs
+scripts/
+test/
+.oxlintrc.json
+stryker.config.json
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+*.tsbuildinfo
+coverage/
+reports/
+.stryker-tmp/
+
+# Package manager / env
+.yarnrc.yml
+.yarn/
+yarn.lock
+.env
+.env.*
