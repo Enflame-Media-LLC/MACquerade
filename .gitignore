@@ -61,5 +61,7 @@ pnpm-lock.yaml
 .zencoder/
 .zenflow/
 
-# Superpowers / Claude Code agent plans (local workflow artifacts)
-docs/superpowers/
+# Local docs / agent-workflow artifacts (untracked by request)
+docs/
+AGENTS.md
+CLAUDE.md
