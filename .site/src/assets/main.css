@@ -5,9 +5,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-
+  /* lowercase unquoted family names: CSS matches families case-insensitively,
+     and this is the only form that satisfies both font-family-name-quotes and
+     value-keyword-case in the Codacy stylelint config */
+  --font-sans: inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, sfmono-regular, monospace;
   --color-base: #0a0a0f;
   --color-surface: #14121f;
   --color-surface-2: #1c1930;
