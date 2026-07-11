@@ -1,7 +1,15 @@
+<p align="center">
+  <a href="https://macquerade.enflamemedia.com">
+    <img src="img/logo.svg" alt="MACquerade — masquerade mask logo" width="240" />
+  </a>
+</p>
+
 # MACquerade
 
 [![npm][npm-image]][npm-url]
 [![downloads][downloads-image]][downloads-url]
+
+**Website & docs: [macquerade.enflamemedia.com](https://macquerade.enflamemedia.com)**
 
 [npm-image]: https://img.shields.io/npm/v/macquerade.svg
 [npm-url]: https://npmjs.org/package/macquerade
@@ -15,8 +23,6 @@ A modern, TypeScript Node.js CLI for changing MAC addresses. Maintained by
 **[Feross Aboukhadijeh](https://feross.org)**, author of the original
 [`SpoofMAC`](https://github.com/feross/SpoofMAC) (Python) and
 [`spoof`](https://github.com/feross/spoof) (Node.js) projects.
-
-![anonymous](img/img.png)
 
 ## Why?
 

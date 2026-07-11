@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" width="96" height="64" role="img" aria-label="MACquerade logo — masquerade mask">
+  <rect width="96" height="64" rx="14" fill="#0a0a0f"/>
+  <path d="M22 24c0-5 5-8 26-8s26 3 26 8c0 14-11 24-26 24S22 38 22 24Z" fill="none" stroke="#f5c451" stroke-width="2.5"/>
+  <circle cx="38" cy="28" r="4.5" fill="#8b5cf6"/>
+  <circle cx="58" cy="28" r="4.5" fill="#8b5cf6"/>
+  <path d="M22 21c-5-2-8 0-9 4" fill="none" stroke="#f5c451" stroke-width="2.5"/>
+  <path d="M74 21c5-2 8 0 9 4" fill="none" stroke="#f5c451" stroke-width="2.5"/>
+</svg>
