@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "macquerade-site",
+  "account_id": "81f483e6767ea3194467ecef42840f79",
+  "compatibility_date": "2026-07-10",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [
+    { "pattern": "macquerade.enflamemedia.com", "custom_domain": true }
+  ]
+}
