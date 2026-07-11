@@ -13,6 +13,13 @@ describe('TerminalWindow', () => {
     expect(wrapper.text()).toContain('output here')
   })
 
+  it('omits the copy button when copyText is not provided', () => {
+    const wrapper = mount(TerminalWindow, {
+      props: { title: 'zsh', command: 'macquerade list' },
+    })
+    expect(wrapper.find('button[data-copied]').exists()).toBe(false)
+  })
+
   it('shows a copy button when copyText is provided', () => {
     const wrapper = mount(TerminalWindow, {
       props: { title: 'zsh', copyText: 'macquerade list' },

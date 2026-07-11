@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
-import { Copy, Check } from 'lucide-vue-next'
+import { Copy, Check } from '@lucide/vue'
 
 const props = defineProps<{ text: string; label?: string }>()
 const copied = ref(false)
@@ -26,7 +26,7 @@ onUnmounted(() => {
   <button
     type="button"
     :data-copied="copied ? 'true' : 'false'"
-    :aria-label="label ?? 'Copy to clipboard'"
+    :aria-label="copied ? 'Copied' : (label ?? 'Copy to clipboard')"
     class="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card-2)] px-2 py-1 text-xs text-[var(--muted)] transition hover:text-[var(--fg)] hover:border-[var(--accent)]"
     @click="copy"
   >

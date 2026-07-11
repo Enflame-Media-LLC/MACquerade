@@ -8,8 +8,7 @@ describe('useTheme', () => {
   })
 
   it('defaults to dark and sets the .dark class', () => {
-    const { theme, isDark } = useTheme()
-    theme.value = 'dark'
+    const { isDark } = useTheme()
     expect(isDark.value).toBe(true)
     expect(document.documentElement.classList.contains('dark')).toBe(true)
   })

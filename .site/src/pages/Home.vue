@@ -9,7 +9,7 @@ import {
   Apple,
   Terminal,
   MonitorSmartphone,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import HeroTerminal from '@/components/HeroTerminal.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
 import TerminalWindow from '@/components/TerminalWindow.vue'

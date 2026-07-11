@@ -9,6 +9,7 @@ export function useTypewriter(options: Options): {
   output: Ref<string>
   done: Ref<boolean>
   start: () => void
+  stop: () => void
   reset: () => void
 } {
   const speed = options.speed ?? 45
@@ -48,5 +49,5 @@ export function useTypewriter(options: Options): {
     done.value = false
   }
 
-  return { output, done, start, reset }
+  return { output, done, start, stop, reset }
 }

@@ -5,9 +5,13 @@ type Theme = 'dark' | 'light'
 const STORAGE_KEY = 'mq-theme'
 
 function readInitial(): Theme {
-  if (typeof localStorage === 'undefined') return 'dark'
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored === 'light' ? 'light' : 'dark'
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === 'light' ? 'light' : 'dark'
+  } catch {
+    // localStorage missing (SSR) or blocked (SecurityError) — default to dark
+    return 'dark'
+  }
 }
 
 const theme = ref<Theme>(readInitial())
@@ -16,8 +20,10 @@ function apply(value: Theme) {
   if (typeof document !== 'undefined') {
     document.documentElement.classList.toggle('dark', value === 'dark')
   }
-  if (typeof localStorage !== 'undefined') {
+  try {
     localStorage.setItem(STORAGE_KEY, value)
+  } catch {
+    // storage blocked — the theme still applies to the DOM for this session
   }
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Menu, Moon, Sun, Github } from 'lucide-vue-next'
+import { Menu, Moon, Sun } from '@lucide/vue'
+import GithubIcon from './GithubIcon.vue'
 import {
   DialogRoot,
   DialogTrigger,
@@ -46,7 +47,7 @@ const NPM = 'https://npmjs.org/package/macquerade'
         </RouterLink>
         <a :href="NPM" class="text-sm text-[var(--muted)] transition hover:text-[var(--fg)]">npm</a>
         <a :href="GITHUB" aria-label="GitHub" class="text-[var(--muted)] transition hover:text-[var(--fg)]">
-          <Github class="size-5" />
+          <GithubIcon class="size-5" />
         </a>
         <button
           type="button"
@@ -72,9 +73,11 @@ const NPM = 'https://npmjs.org/package/macquerade'
             <Menu class="size-5" />
           </DialogTrigger>
           <DialogPortal>
-            <DialogOverlay class="fixed inset-0 z-50 bg-black/60" />
+            <DialogOverlay
+              class="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:duration-200 data-[state=closed]:duration-150"
+            />
             <DialogContent
-              class="fixed right-0 top-0 z-50 h-full w-64 border-l border-[var(--border)] bg-[var(--card)] p-6"
+              class="fixed right-0 top-0 z-50 h-full w-64 border-l border-[var(--border)] bg-[var(--card)] p-6 data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:duration-200 data-[state=closed]:duration-150"
             >
               <DialogTitle class="sr-only">Navigation menu</DialogTitle>
               <DialogDescription class="sr-only">Site navigation links</DialogDescription>

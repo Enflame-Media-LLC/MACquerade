@@ -14,7 +14,7 @@ describe('commands data', () => {
   })
 
   it('exposes flags, exit codes, and nav', () => {
-    expect(flags.length).toBeGreaterThan(5)
+    expect(flags.length).toBe(10)
     expect(exitCodes.length).toBe(3)
     expect(docsNav.map((n) => n.to)).toContain('/docs/commands')
   })

@@ -4,8 +4,8 @@ import { useTypewriter } from '@/composables/useTypewriter'
 import { useMacMorph } from '@/composables/useMacMorph'
 import TerminalWindow from './TerminalWindow.vue'
 
-const { output, done, start } = useTypewriter({ text: 'sudo macquerade randomize en0', speed: 55 })
-const { mac, morph } = useMacMorph({ steps: 14, interval: 70 })
+const { output, done, start, stop: stopTyping } = useTypewriter({ text: 'sudo macquerade randomize en0', speed: 55 })
+const { mac, morph, stop: stopMorph } = useMacMorph({ steps: 14, interval: 70 })
 
 let stop: ReturnType<typeof setInterval> | null = null
 
@@ -21,6 +21,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (stop) clearInterval(stop)
+  stopTyping()
+  stopMorph()
 })
 </script>
 

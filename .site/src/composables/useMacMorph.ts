@@ -25,6 +25,7 @@ interface Options {
 export function useMacMorph(options: Options = {}): {
   mac: Ref<string>
   morph: () => void
+  stop: () => void
 } {
   const steps = options.steps ?? 12
   const interval = options.interval ?? 60
@@ -51,5 +52,5 @@ export function useMacMorph(options: Options = {}): {
     }, interval)
   }
 
-  return { mac, morph }
+  return { mac, morph, stop }
 }

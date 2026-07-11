@@ -12,7 +12,10 @@ const steps = [
   { title: 'Global install (npm)', cmd: 'npm install -g macquerade' },
   { title: 'Global install (yarn)', cmd: 'yarn global add macquerade' },
   { title: 'Run without installing', cmd: 'npx macquerade list' },
-  { title: 'From source', cmd: 'git clone https://github.com/TheJACKedViking/spoof.git' },
+  {
+    title: 'From source',
+    cmd: 'git clone https://github.com/Enflame-Media-LLC/MACquerade.git && cd MACquerade && yarn install && yarn build && node dist/cli.js list',
+  },
 ]
 </script>
 
